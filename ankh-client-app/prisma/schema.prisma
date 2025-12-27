@@ -10,8 +10,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum UserRole {
@@ -65,11 +66,7 @@ model Customer {
 
 model Lesson {
   id                    String   @id @default(cuid())
-  title                 String
-  startTime             DateTime
-  endTime               DateTime
   lessonType            String   // 'Group' or 'Individual'
-  courseCompletionStatus String  // 'In Progress' or 'Completed'
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

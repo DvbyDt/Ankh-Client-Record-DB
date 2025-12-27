@@ -1,3 +1,29 @@
+# Ankh Client App
+## Deployment
+- **Recommended stack**: Deploy the Next.js app on Vercel and use a managed Postgres (Supabase, Neon, Railway, Render, or an existing Postgres instance). Prisma connects via `DATABASE_URL`.
+- **Environment variables**: In your hosting provider, add `DATABASE_URL` and any secrets (e.g., `NEXTAUTH_SECRET`, SMTP keys). Do not commit secrets.
+- **Prisma migrations**: Run migrations against the production DB before/at first deploy.
+
+### Vercel Setup (App) + Postgres (DB)
+1. Provision a production Postgres database (e.g., Supabase/Neon) and copy its connection string.
+2. Apply migrations to the prod DB:
+	 - Export your prod `DATABASE_URL` and run:
+		 ```bash
+		 export DATABASE_URL="postgres://user:pass@host:port/dbname"
+		 npx prisma migrate deploy --schema prisma/schema.prisma
+		 ```
+3. In Vercel, import this repo and set environment variables (`DATABASE_URL`, other secrets) in Project Settings → Environment Variables.
+4. Build command: Vercel defaults to `npm run build`. If you keep the generated Prisma client in the repo, set env `PRISMA_SKIP_POSTINSTALL_GENERATE=true`. If you prefer generating on install, add `"postinstall": "prisma generate"` in `package.json` and do not commit the generated client.
+5. Deploy and verify.
+
+### Alternative: Docker + Fly.io/Railway/Render
+- Configure `next.config.ts` with `output: 'standalone'`.
+- Create a Dockerfile, build the image, deploy to your host, and set `DATABASE_URL`.
+- Run `npx prisma migrate deploy` as a release task/job against the prod DB.
+
+### Notes
+- Prisma client is Node runtime only; avoid Edge functions for DB access.
+- Generated Prisma client under `src/generated/` is excluded from lint via `.eslintignore`.
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

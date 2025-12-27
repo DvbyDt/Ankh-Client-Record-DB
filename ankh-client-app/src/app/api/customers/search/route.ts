@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '../../../../lib/prisma'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const name = searchParams.get('name')
+    const { searchParams } = new URL(request.url);
+    const name = searchParams.get('name');
+
+    console.log('Received search parameter:', name);
 
     if (!name) {
       return NextResponse.json(
         { error: 'Name parameter is required' },
         { status: 400 }
-      )
+      );
     }
 
-    // Search for customers by name (first name or last name)
+    // Search for customers by name (first name, last name, or email)
     const customers = await prisma.customer.findMany({
       where: {
         OR: [
@@ -34,8 +36,6 @@ export async function GET(request: NextRequest) {
             lesson: {
               select: {
                 id: true,
-                title: true,
-                startTime: true,
                 instructor: {
                   select: {
                     firstName: true,
@@ -43,13 +43,15 @@ export async function GET(request: NextRequest) {
                   }
                 }
               }
-            }
+            },
+            customerSymptoms: true, // Include symptoms from LessonParticipant
+            customerImprovements: true // Include improvements from LessonParticipant
           },
-          orderBy: {
-            lesson: {
-              startTime: 'desc'
+          orderBy: [
+            {
+              lesson: {}
             }
-          },
+          ],
           take: 5 // Limit to last 5 lessons
         }
       },
@@ -58,25 +60,27 @@ export async function GET(request: NextRequest) {
         { lastName: 'asc' }
       ],
       take: 10 // Limit results
-    })
+    });
+
+    console.log('Search results:', customers);
 
     if (customers.length === 0) {
       return NextResponse.json({
         message: 'No customers found',
         customers: []
-      })
+      });
     }
 
     return NextResponse.json({
       message: 'Customers found',
       customers
-    })
+    });
 
   } catch (error) {
-    console.error('Customer search error:', error)
+    console.error('Customer search error:', error);
     return NextResponse.json(
       { error: 'Internal server error during customer search' },
       { status: 500 }
-    )
+    );
   }
 }

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '../../../../lib/prisma'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import { prisma } from '@/lib/prisma'
+// 🔑 NEW: Retrieve your secret key from environment variables
+const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_secret_for_dev_only'; 
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,8 +38,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 🔑 NEW: 1. Prepare non-sensitive payload data
+    const payload = {
+      userId: user.id,
+      username: user.username,
+      role: user.role
+    };
+
+    // 🔑 NEW: 2. Generate the JWT (The Magic Key!)
+    const token = jwt.sign(
+      payload,
+      JWT_SECRET,
+      { expiresIn: '1d' } // Token expires in 1 day
+    );
+
     // Compare password
     const isPasswordValid = await bcrypt.compare(password, user.password)
+    // const isPasswordValid = password === user.password;
+    console.log(`${password} and user.password ${user.password}`)
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: 'Invalid username or password' },
@@ -49,7 +68,8 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       message: 'Login successful',
-      user: userData
+      user: userData,
+      token
     }, { status: 200 })
 
   } catch (error) {

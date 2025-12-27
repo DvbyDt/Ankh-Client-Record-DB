@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '../../../lib/prisma'
+import { PrismaClient } from '../../../generated/prisma'
+
+const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('request search URL:', request.url);
+    const { searchParams } = new URL(request.url);
+    const nameFilter = searchParams.get('search');
+    console.log('Received name filter:', nameFilter);
+
     const locations = await prisma.location.findMany({
+      where: nameFilter ? { name: { contains: nameFilter, mode: 'insensitive' } } : {},
       select: {
         id: true,
         name: true,
@@ -12,16 +20,18 @@ export async function GET(request: NextRequest) {
       orderBy: {
         name: 'asc'
       }
-    })
+    });
 
-    return NextResponse.json({ locations })
+    console.log('Fetched locations:', locations);
+
+    return NextResponse.json({ locations });
 
   } catch (error) {
-    console.error('Error fetching locations:', error)
+    console.error('Error fetching locations:', error);
     return NextResponse.json(
       { error: 'Internal server error while fetching locations' },
       { status: 500 }
-    )
+    );
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '../../../lib/prisma'
+import { PrismaClient } from '../../../generated/prisma'
+const prisma = new PrismaClient();
 
 // Expected CSV headers for validation
 const EXPECTED_HEADERS = [
@@ -10,10 +11,8 @@ const EXPECTED_HEADERS = [
   'Lesson Date',
   'Instructor Name',
   'Lesson Type',
-  'Lesson Content',
   'Customer Symptoms',
-  'Customer Improvements',
-  'Course Completion Status'
+  'Customer Improvements'
 ]
 
 export async function POST(request: NextRequest) {
@@ -102,10 +101,8 @@ export async function POST(request: NextRequest) {
         const lessonDate = row['Lesson Date']?.trim()
         const instructorName = row['Instructor Name']?.trim()
         const lessonType = row['Lesson Type']?.trim()
-        const lessonContent = row['Lesson Content']?.trim()
         const customerSymptoms = row['Customer Symptoms']?.trim()
         const customerImprovements = row['Customer Improvements']?.trim()
-        const courseCompletionStatus = row['Course Completion Status']?.trim()
 
         // Validate required fields
         if (!customerId || !customerName || !lessonId || !lessonDate || !instructorName) {
@@ -125,7 +122,7 @@ export async function POST(request: NextRequest) {
         // Use transaction to ensure data consistency
         await prisma.$transaction(async (tx) => {
           // Create or update customer
-          let customer = await tx.customer.upsert({
+          const customer = await tx.customer.upsert({
             where: { id: customerId },
             update: {
               firstName: customerName.split(' ')[0] || '',
@@ -141,7 +138,7 @@ export async function POST(request: NextRequest) {
           })
 
           // Create or update instructor (User with INSTRUCTOR role)
-          let instructor = await tx.user.upsert({
+          const instructor = await tx.user.upsert({
             where: { email: `${instructorName.replace(/\s+/g, '')}@imported.local` },
             update: {
               firstName: instructorName.split(' ')[0] || '',
@@ -158,26 +155,22 @@ export async function POST(request: NextRequest) {
           })
 
           // Create or update lesson
-          let lesson = await tx.lesson.upsert({
+          const lesson = await tx.lesson.upsert({
             where: { id: lessonId },
             update: {
-              title: lessonContent || 'Imported Lesson',
-              startTime: parsedDate,
-              endTime: new Date(parsedDate.getTime() + 60 * 60 * 1000), // 1 hour later
               lessonType: lessonType || 'Group',
-              courseCompletionStatus: courseCompletionStatus || 'In Progress',
               instructorId: instructor.id,
               locationId: 'default-location-id', // You might want to handle this differently
             },
             create: {
               id: lessonId,
-              title: lessonContent || 'Imported Lesson',
-              startTime: parsedDate,
-              endTime: new Date(parsedDate.getTime() + 60 * 60 * 1000), // 1 hour later
               lessonType: lessonType || 'Group',
-              courseCompletionStatus: courseCompletionStatus || 'In Progress',
               instructorId: instructor.id,
               locationId: 'default-location-id', // You might want to handle this differently
+              // title: `Lesson ${lessonId}`, // Removed as it is not part of LessonCreateInput
+              // startTime: new Date().toISOString(), // Provide a default start time
+              // endTime: new Date(new Date().getTime() + 3600000).toISOString(), // Provide a default end time (1 hour later)
+              // courseCompletionStatus: 'incomplete' // Provide a default course completion status
             }
           })
 

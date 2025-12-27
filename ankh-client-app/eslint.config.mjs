@@ -18,7 +18,13 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "src/generated/**", // Ignore generated Prisma files
     ],
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn", // Change to warning instead of error
+    },
   },
 ];
 
