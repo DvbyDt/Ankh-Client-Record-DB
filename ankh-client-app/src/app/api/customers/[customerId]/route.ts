@@ -25,44 +25,46 @@ const requireManager = (request: NextRequest) => {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const auth = requireManager(request)
-    if ('error' in auth) return auth.error
+    if ('error' in auth) return auth.error;
 
-    const { customerId } = params
+    const { customerId } = await params; // Await the params promise
 
     if (!customerId) {
       return NextResponse.json(
         { error: 'Customer ID is required' },
         { status: 400 }
-      )
+      );
     }
 
     // Delete customer (cascade will handle lesson participants)
     await prisma.customer.delete({
-      where: { id: customerId }
-    })
+      where: { id: customerId },
+    });
 
     return NextResponse.json(
       { message: 'Customer deleted successfully' },
       { status: 200 }
-    )
-
+    );
   } catch (error) {
-    console.error('Customer deletion error:', error)
-    
-    if (error instanceof Error && error.message.includes('Record to delete does not exist')) {
+    console.error('Customer deletion error:', error);
+
+    if (
+      error instanceof Error &&
+      error.message.includes('Record to delete does not exist')
+    ) {
       return NextResponse.json(
         { error: 'Customer not found' },
         { status: 404 }
-      )
+      );
     }
 
     return NextResponse.json(
       { error: 'Internal server error during customer deletion' },
       { status: 500 }
-    )
+    );
   }
 }
