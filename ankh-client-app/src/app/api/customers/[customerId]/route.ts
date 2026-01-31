@@ -25,17 +25,17 @@ const requireManager = (request: NextRequest) => {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { lessonId: string; customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const auth = requireManager(request);
     if ('error' in auth) return auth.error;
 
-    const { lessonId, customerId } = params; // Directly use params without awaiting
+    const { customerId } = await params;
 
-    if (!lessonId || !customerId) {
+    if (!customerId) {
       return NextResponse.json(
-        { error: 'Lesson ID and Customer ID are required' },
+        { error: 'Customer ID is required' },
         { status: 400 }
       );
     }
