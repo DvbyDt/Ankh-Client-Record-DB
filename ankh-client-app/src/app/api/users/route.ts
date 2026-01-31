@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '../../../generated/prisma'
 import bcrypt from 'bcryptjs'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,17 +89,29 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
+  const role = searchParams.get('role');
 
     const users = await prisma.user.findMany({
       where: search
-        ? {
+        ? role
+          ? {
+              role: role as 'MANAGER' | 'INSTRUCTOR',
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } }
+              ]
+            }
+          : {
             OR: [
               { firstName: { contains: search, mode: 'insensitive' } },
               { lastName: { contains: search, mode: 'insensitive' } },
               { email: { contains: search, mode: 'insensitive' } }
             ]
           }
-        : {},
+        : role
+          ? { role: role as 'MANAGER' | 'INSTRUCTOR' }
+          : {},
       select: {
         id: true,
         username: true,
@@ -109,7 +119,23 @@ export async function GET(request: NextRequest) {
         firstName: true,
         lastName: true,
         email: true,
-        createdAt: true
+        createdAt: true,
+        lessons: {
+          include: {
+            lessonParticipants: {
+              include: {
+                customer: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'

@@ -1,19 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Loader2, AlertCircle, Users, UserCheck, MapPin, Plus, Download, Upload, LogIn, UserPlus, MapPinPlus } from 'lucide-react'
+import { Search, Loader2, AlertCircle, Users, Plus, Download, Upload, LogIn, UserPlus, MapPinPlus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { useRouter, usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
-import jwt from 'jsonwebtoken';
 import Cookies from 'js-cookie';
 import React from 'react'
 // import { toast } from '@/components/ui/toast';
@@ -29,6 +27,7 @@ interface User {
   firstName: string
   lastName: string
   email: string
+  createdAt?: string
 }
 
 interface Location {
@@ -147,9 +146,102 @@ export default function HomePage() {
   const [isCustomerSearching, setIsCustomerSearching] = useState(false)
 
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
+  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  const [isDeletingLesson, setIsDeletingLesson] = useState(false);
+
+  // View all users dialog state
+  const [showAllUsersDialog, setShowAllUsersDialog] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  // Confirmation dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmDialogData, setConfirmDialogData] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const toggleExpandCustomer = (customerId: string) => {
     setExpandedCustomerId((prev) => (prev === customerId ? null : customerId));
+  };
+
+  // Handle customer deletion
+  const handleDeleteCustomer = async (customerId: string, customerName: string) => {
+    setConfirmDialogData({
+      title: 'Delete Customer',
+      message: `Are you sure you want to delete customer "${customerName}"? This will also delete all their lesson records.`,
+      onConfirm: async () => {
+        const token = Cookies.get('jwt-token')
+        if (!token) {
+          setToastMessage('You must be logged in as a manager to delete customers.')
+          return
+        }
+
+        setIsDeletingCustomer(true);
+        try {
+
+          const response = await fetch(`/api/customers/${customerId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            setToastMessage('Customer deleted successfully!');
+            // Remove from search results
+            setSearchResults(searchResults.filter(r => r.id !== customerId));
+          } else {
+            const errorData = await response.json();
+            setToastMessage(errorData.error || 'Failed to delete customer.');
+          }
+        } catch (error) {
+          setToastMessage('An unexpected error occurred while deleting customer.');
+        } finally {
+          setIsDeletingCustomer(false);
+          setShowConfirmDialog(false);
+        }
+      }
+    });
+    setShowConfirmDialog(true);
+  };
+
+  // Handle lesson participant deletion
+  const handleDeleteLessonParticipant = async (customerId: string, lessonId: string, customerName: string) => {
+    setConfirmDialogData({
+      title: 'Delete Lesson Record',
+      message: `Are you sure you want to delete this lesson record for "${customerName}"?`,
+      onConfirm: async () => {
+        const token = Cookies.get('jwt-token')
+        if (!token) {
+          setToastMessage('You must be logged in as a manager to delete lesson records.')
+          return
+        }
+
+        setIsDeletingLesson(true);
+        try {
+
+          const response = await fetch(`/api/lessons/${lessonId}/participants/${customerId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            setToastMessage('Lesson record deleted successfully!');
+            // Refresh the search to update the data
+            handleSearch();
+          } else {
+            const errorData = await response.json();
+            setToastMessage(errorData.error || 'Failed to delete lesson record.');
+          }
+        } catch (error) {
+          setToastMessage('An unexpected error occurred while deleting lesson record.');
+        } finally {
+          setIsDeletingLesson(false);
+          setShowConfirmDialog(false);
+        }
+      }
+    });
+    setShowConfirmDialog(true);
   };
 
 
@@ -261,6 +353,24 @@ export default function HomePage() {
     }
   }
 
+  // Fetch all users for manager view
+  const fetchAllUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setAllUsers(data.users || []);
+      } else {
+        setToastMessage('Failed to fetch users');
+      }
+    } catch (error) {
+      setToastMessage('Error fetching users');
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   // Handle user creation
   const handleUserCreation = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -364,7 +474,26 @@ export default function HomePage() {
       if (response.ok) {
         const data = await response.json()
         console.log('Search results:', data)
-        setSearchResults(data.customers || data.users || data.locations || [])
+        const results = data.customers || data.users || data.locations || []
+        setSearchResults(results)
+        
+        // Check if results are empty and set appropriate error message
+        if (results.length === 0) {
+          setIsError(true)
+          let errorKey = ''
+          switch (searchType) {
+            case 'customer':
+              errorKey = 'HomePage.searchFailedCustomer'
+              break
+            case 'instructor':
+              errorKey = 'HomePage.searchFailedInstructor'
+              break
+            case 'location':
+              errorKey = 'HomePage.searchFailedLocation'
+              break
+          }
+          setErrorMessage(t(errorKey))
+        }
       } else {
         setIsError(true)
         setErrorMessage('Search failed. Please try again.')
@@ -382,6 +511,8 @@ export default function HomePage() {
   const handleSearchTypeChange = (value: SearchType) => {
     setSearchType(value);
     setSearchResults([]); // Clear previous search results
+    setIsError(false); // Clear error state
+    setErrorMessage(''); // Clear error message
   };
 
   // Function to format date for display
@@ -555,6 +686,21 @@ export default function HomePage() {
                   {t('HomePage.exportCSV')}
                 </Button>
               </a>
+              {currentUser?.role === 'MANAGER' && (
+                <Button
+                  variant="outline"
+                  className="px-6"
+                  onClick={() => {
+                    setShowAllUsersDialog(!showAllUsersDialog);
+                    if (!showAllUsersDialog && allUsers.length === 0) {
+                      fetchAllUsers();
+                    }
+                  }}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  {showAllUsersDialog ? 'Hide All Users' : 'View All Users'}
+                </Button>
+              )}
               <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="px-6">
@@ -571,10 +717,11 @@ export default function HomePage() {
                   </DialogHeader>
                   
                   <div className="space-y-4">
-                    {/* CSV Requirements */}
+                    {/* File Format Requirements */}
                     <div className="space-y-2">
-                      <h4 className="text-sm font-medium">{t('HomePage.csvRequirements')}</h4>
+                      <h4 className="text-sm font-medium">📁 {t('HomePage.csvRequirements')}</h4>
                       <div className="text-sm text-muted-foreground space-y-1">
+                        <p><strong>Supported formats:</strong> CSV (.csv), Excel (.xlsx, .xls)</p>
                         <p>{t('HomePage.csvRequirementsDesc')}</p>
                         <ul className="list-disc list-inside space-y-1 ml-2">
                           <li>{t('HomePage.csvHeaders.customerId')}</li>
@@ -598,7 +745,7 @@ export default function HomePage() {
                       <Input
                         id="csv-file"
                         type="file"
-                        accept=".csv"
+                        accept=".csv,.xlsx,.xls"
                         onChange={handleFileSelect}
                         disabled={isImporting}
                       />
@@ -654,6 +801,60 @@ export default function HomePage() {
               </div>
             )}
 
+            {/* All Users Table */}
+            {currentUser?.role === 'MANAGER' && showAllUsersDialog && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>All Users</CardTitle>
+                  <CardDescription>View all users in the system</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingUsers ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table className="table-fixed w-full">
+                        <TableHeader>
+                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Name</TableHead>
+                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Username</TableHead>
+                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Email</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Role</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Created At</TableHead>
+                        </TableHeader>
+                        <TableBody>
+                          {allUsers.length > 0 ? (
+                            allUsers.map((user) => (
+                              <TableRow key={user.id}>
+                                <TableCell className="w-[20%] px-4 py-3">{`${user.firstName} ${user.lastName}`}</TableCell>
+                                <TableCell className="w-[20%] px-4 py-3">{user.username}</TableCell>
+                                <TableCell className="w-[20%] px-4 py-3 break-all">{user.email}</TableCell>
+                                <TableCell className="w-[15%] px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    user.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                  }`}>
+                                    {user.role}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="w-[15%] px-4 py-3">{new Date(user.createdAt || '').toLocaleDateString()}</TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-gray-500">
+                                No users found
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Search Section */}
             <Card className="mb-8">
               <CardHeader>
@@ -677,7 +878,11 @@ export default function HomePage() {
                   <Input
                     placeholder={t('HomePage.searchPlaceholder2', { type: searchType })}
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setIsError(false)
+                      setErrorMessage('')
+                    }}
                     className="flex-1"
                   />
                   <Button onClick={handleSearch} disabled={isLoading || !searchTerm.trim()}>
@@ -697,85 +902,147 @@ export default function HomePage() {
                     <span>{errorMessage}</span>
                   </div>
                 )}
-
                 {searchResults.length > 0 && (
-                  <div className="mt-6">
-                    <h3 className="text-lg font-medium mb-4">{t('HomePage.searchResults')}</h3>
-                    <Table className="border border-gray-300 rounded-lg overflow-hidden">
-                      <TableHeader className="bg-gray-100">
-                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.name')}</TableHead>
-                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.email')}</TableHead>
-                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.phone')}</TableHead>
-                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.lessons')}</TableHead>
-                      </TableHeader>
-                      <TableBody>
-                        {searchResults.map((result) => (
-                          <React.Fragment key={result.id}>
-                            <TableRow
-                              className="hover:bg-gray-50 cursor-pointer"
+                  <>
+                    <h3 className="text-lg font-medium mb-4 mt-6">{t('HomePage.searchResults')}</h3>
+                    <div className="mt-6 flex justify-center">
+                      <div className="w-full max-w-4xl">
+                        <div className="space-y-4">
+                      {searchResults.map((result) => (
+                        <Card key={result.id} className="border border-gray-200">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <CardTitle className="text-base">
+                                  {`${result.firstName} ${result.lastName}`}
+                                </CardTitle>
+                                <CardDescription className="break-all">{result.email}</CardDescription>
+                              </div>
+                              {currentUser?.role === 'MANAGER' && searchType === 'customer' && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteCustomer(result.id, `${result.firstName} ${result.lastName}`)}
+                                  disabled={isDeletingCustomer}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="text-sm text-gray-700">
+                              <span className="font-medium">
+                                {searchType === 'customer' ? t('CustomerSearch.lessons') : t('CustomerSearch.customersCount')}: 
+                              </span>
+                              {searchType === 'customer'
+                                ? (result.lessonParticipants?.length || 0)
+                                : (result.lessons?.reduce((total: number, lesson: any) => 
+                                    total + (lesson.lessonParticipants?.length || 0), 0) || 0)
+                              }
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => toggleExpandCustomer(result.id)}
                             >
-                              <TableCell className="py-3 px-4 border-b border-gray-200">
-                                <span className="text-blue-600 font-medium">
-                                  {`${result.firstName} ${result.lastName}`}
-                                </span>
-                              </TableCell>
-                              <TableCell className="py-3 px-4 border-b border-gray-200">{result.email}</TableCell>
-                              <TableCell className="py-3 px-4 border-b border-gray-200">{result.phone || t('Common.na')}</TableCell>
-                              <TableCell className="py-3 px-4 border-b border-gray-200">{result.lessonParticipants?.length || 0}</TableCell>
-                            </TableRow>
-                            {expandedCustomerId === result.id && (
-                              <TableRow key={`${result.id}-expanded`}>
-                                <TableCell colSpan={4} className="bg-gray-50">
-                                  {/* Initial Condition Table */}
-                                  <div className="mt-4 p-4 border border-gray-200 rounded-lg mb-4">
-                                    <h4 className="text-md font-medium mb-3">{t('CustomerSearch.initialCondition')}</h4>
-                                    <Table className="border border-gray-300 rounded-lg overflow-hidden">
-                                      <TableHeader className="bg-gray-100">
-                                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.mainConcern')}</TableHead>
-                                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.currentHealthIssue')}</TableHead>
-                                      </TableHeader>
-                                      <TableBody>
-                                        <TableRow className="hover:bg-gray-50">
-                                          <TableCell className="py-3 px-4 border-b border-gray-200">
-                                            {result?.lessonParticipants?.[0]?.customerSymptoms || t('Common.na')}
-                                          </TableCell>
-                                          <TableCell className="py-3 px-4 border-b border-gray-200">
-                                            {result?.lessonParticipants?.[result.lessonParticipants.length - 1]?.customerSymptoms || t('Common.na')}
-                                          </TableCell>
-                                        </TableRow>
-                                      </TableBody>
-                                    </Table>
-                                  </div>
+                              {expandedCustomerId === result.id ? t('Common.close') : t('Common.view')}
+                            </Button>
 
-                                  {/* Lesson Details Table */}
-                                  <div className="mt-4 p-4 border border-gray-200 rounded-lg">
-                                    <h4 className="text-md font-medium mb-3">{t('CustomerSearch.lessonDetails')}</h4>
-                                    <Table className="border border-gray-300 rounded-lg overflow-hidden">
-                                      <TableHeader className="bg-gray-100">
-                                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.instructor')}</TableHead>
-                                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.symptoms')}</TableHead>
-                                        <TableHead className="text-left text-gray-700 font-semibold">{t('CustomerSearch.improvements')}</TableHead>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {result?.lessonParticipants?.map((participant:any, key=participant.lessonID) => (
-                                          <TableRow key={key} className="hover:bg-gray-50">
-                                            <TableCell className="py-3 px-4 border-b border-gray-200">{`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}</TableCell>
-                                            <TableCell className="py-3 px-4 border-b border-gray-200">{participant.customerSymptoms}</TableCell>
-                                            <TableCell className="py-3 px-4 border-b border-gray-200">{participant.customerImprovements}</TableCell>
-                                          </TableRow>
+                            {expandedCustomerId === result.id && (
+                              <div className="pt-2 space-y-4">
+                                {searchType === 'customer' && (
+                                  <>
+                                    <div className="text-sm text-gray-600">
+                                      <span className="font-medium">{t('CustomerSearch.phone')}: </span>
+                                      {result.phone || t('Common.na')}
+                                    </div>
+
+                                    <div className="border border-gray-200 rounded-lg p-3">
+                                      <h4 className="text-sm font-medium mb-2">{t('CustomerSearch.initialCondition')}</h4>
+                                      <div className="grid gap-2 text-sm">
+                                        <div>
+                                          <span className="font-medium">{t('CustomerSearch.mainConcern')}: </span>
+                                          {result?.lessonParticipants?.[0]?.customerSymptoms || t('Common.na')}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">{t('CustomerSearch.currentHealthIssue')}: </span>
+                                          {result?.lessonParticipants?.[result.lessonParticipants.length - 1]?.customerSymptoms || t('Common.na')}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="border border-gray-200 rounded-lg p-3">
+                                      <h4 className="text-sm font-medium mb-2">{t('CustomerSearch.lessonDetails')}</h4>
+                                      <div className="space-y-2">
+                                        {result?.lessonParticipants?.map((participant: any, index: number) => (
+                                          <div key={index} className="border border-gray-100 rounded-md p-2">
+                                            <div className="flex items-start justify-between gap-3">
+                                              <div className="text-sm font-medium">
+                                                {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
+                                              </div>
+                                              {currentUser?.role === 'MANAGER' && (
+                                                <Button
+                                                  variant="destructive"
+                                                  size="sm"
+                                                  onClick={() => handleDeleteLessonParticipant(result.id, participant.lesson.id, `${result.firstName} ${result.lastName}`)}
+                                                  disabled={isDeletingLesson}
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              )}
+                                            </div>
+                                            <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
+                                              <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
+                                            </div>
+                                            <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
+                                              <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
+                                            </div>
+                                          </div>
                                         ))}
-                                      </TableBody>
-                                    </Table>
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+
+                                {searchType === 'instructor' && (
+                                  <div className="border border-gray-200 rounded-lg p-3">
+                                    <h4 className="text-sm font-medium mb-2">{t('CustomerSearch.customersTrained')}</h4>
+                                    <div className="space-y-2">
+                                      {result?.lessons && result.lessons.length > 0 ? (
+                                        result.lessons.some((lesson: any) => lesson.lessonParticipants && lesson.lessonParticipants.length > 0) ? (
+                                          result.lessons.flatMap((lesson: any) => (
+                                            lesson.lessonParticipants?.map((participant: any) => (
+                                              <div key={`${lesson.id}-${participant.customerId}`} className="border border-gray-100 rounded-md p-2">
+                                                <div className="text-sm font-medium">
+                                                  {`${participant.customer.firstName} ${participant.customer.lastName}`}
+                                                </div>
+                                                <div className="text-sm text-gray-600">{participant.customer.email}</div>
+                                                <div className="text-sm text-gray-600">{t('CustomerSearch.lessonType')}: {lesson.lessonType}</div>
+                                                <div className="text-sm text-gray-600">
+                                                  {t('CustomerSearch.lessonDate')}: {lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString() : t('Common.na')}
+                                                </div>
+                                              </div>
+                                            )) || []
+                                          ))
+                                        ) : (
+                                          <div className="text-sm text-gray-500 italic">No customers have been trained yet.</div>
+                                        )
+                                      ) : (
+                                        <div className="text-sm text-gray-500 italic">No lessons found for this instructor.</div>
+                                      )}
+                                    </div>
                                   </div>
-                                </TableCell>
-                              </TableRow>
+                                )}
+                              </div>
                             )}
-                          </React.Fragment>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -966,6 +1233,44 @@ export default function HomePage() {
           message={toastMessage}
           onClose={() => setToastMessage(null)}
         />
+      )}
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && confirmDialogData && (
+        <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{confirmDialogData.title}</DialogTitle>
+              <DialogDescription>
+                {confirmDialogData.message}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  confirmDialogData.onConfirm();
+                }}
+                disabled={isDeletingCustomer || isDeletingLesson}
+              >
+                {isDeletingCustomer || isDeletingLesson ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

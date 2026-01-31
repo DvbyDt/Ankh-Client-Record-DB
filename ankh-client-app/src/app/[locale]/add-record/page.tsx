@@ -73,6 +73,8 @@ export default function AddRecordPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<Customer[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [hasSearched, setHasSearched] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   
   // Form data
@@ -140,14 +142,21 @@ export default function AddRecordPage() {
     if (!searchTerm.trim()) return
 
     setIsSearching(true)
+    setSearchError(null)
+    setHasSearched(true)
     try {
       const response = await fetch(`/api/customers/search?name=${encodeURIComponent(searchTerm)}`)
       if (response.ok) {
         const data = await response.json()
         setSearchResults(data.customers || [])
+      } else {
+        setSearchError('Failed to search customers. Please try again.')
+        setSearchResults([])
       }
     } catch (error) {
       console.error('Error searching customers:', error)
+      setSearchError('An error occurred while searching. Please try again.')
+      setSearchResults([])
     } finally {
       setIsSearching(false)
     }
@@ -320,7 +329,11 @@ export default function AddRecordPage() {
                 <Input
                   placeholder={t('AddRecord.searchPlaceholder')}
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setHasSearched(false)
+                    setSearchError(null)
+                  }}
                   onKeyDown={(e) => e.key === 'Enter' && handleCustomerSearch()}
                   className="flex-1"
                 />
@@ -333,6 +346,18 @@ export default function AddRecordPage() {
                   {t('Common.search')}
                 </Button>
               </div>
+
+              {searchError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-600">{searchError}</p>
+                </div>
+              )}
+
+              {hasSearched && !isSearching && !searchError && searchResults.length === 0 && (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="text-sm text-yellow-700">{t('AddRecord.noCustomersFound')}</p>
+                </div>
+              )}
 
               {searchResults.length > 0 && (
                 <div className="space-y-2">

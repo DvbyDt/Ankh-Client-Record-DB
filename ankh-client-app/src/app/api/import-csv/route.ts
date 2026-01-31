@@ -1,19 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '../../../generated/prisma'
-const prisma = new PrismaClient();
+import { Prisma } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import * as XLSX from 'xlsx'
 
-// Expected CSV headers for validation
-const EXPECTED_HEADERS = [
-  'Customer ID',
-  'Customer Name',
-  'Initial Symptom',
-  'Lesson ID',
-  'Lesson Date',
-  'Instructor Name',
-  'Lesson Type',
-  'Customer Symptoms',
-  'Customer Improvements'
+// Required headers (canonical, case-insensitive)
+const REQUIRED_HEADERS = [
+  'customer id',
+  'customer name',
+  'initial symptom',
+  'lesson id',
+  'lesson date',
+  'instructor name',
+  'lesson type',
+  'customer symptoms',
+  'customer improvements',
+  'lesson content'
 ]
+
+// Aliases to support different upload templates (lowercase keys)
+const HEADER_ALIASES: Record<string, string> = {
+  'customer_id': 'customer id',
+  'customer name': 'customer name',
+  'customer_name': 'customer name',
+  'client_name': 'customer name',
+  'initial symptom': 'initial symptom',
+  'client_condition_before_after': 'customer improvements',
+  'customer improvements': 'customer improvements',
+  'customer symptoms': 'customer symptoms',
+  'client_notes': 'customer symptoms',
+  'lesson id': 'lesson id',
+  'lesson_id': 'lesson id',
+  'lesson date': 'lesson date',
+  'lesson_date': 'lesson date',
+  'timestamp': 'lesson date',
+  'instructor name': 'instructor name',
+  'instructor_name': 'instructor name',
+  'lesson type': 'lesson type',
+  'lesson_type': 'lesson type',
+  'care_program': 'lesson type',
+  'location': 'location name',
+  'location name': 'location name',
+  'location_name': 'location name',
+  'lesson content': 'lesson content',
+  'lesson_content': 'lesson content',
+  'lesson details': 'lesson content',
+  'lesson_details': 'lesson content',
+  'owner_feedback': 'lesson content'
+}
+
+const normalizeHeader = (header: string) =>
+  header
+    .replace(/\u00a0/g, ' ') // normalize non-breaking spaces
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+
+const canonicalHeader = (header: string) => {
+  const normalized = normalizeHeader(header)
+  return HEADER_ALIASES[normalized] ?? normalized
+}
+
+const ensureLocation = async (
+  tx: Prisma.TransactionClient,
+  name?: string | null
+): Promise<string> => {
+  const targetName = name?.trim() || 'Default Location'
+
+  const location = await tx.location.upsert({
+    where: { name: targetName },
+    update: {},
+    create: { name: targetName }
+  })
+
+  return location.id
+}
+
+// Parse dates from either ISO-like strings or Excel serial numbers
+const parseLessonDate = (value: string): Date | null => {
+  const trimmed = value?.toString().trim()
+  if (!trimmed) return null
+
+  // Excel serial dates are numbers (days since 1899-12-31, with 1900 leap bug)
+  const numeric = Number(trimmed)
+  if (!Number.isNaN(numeric) && numeric > 0) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30))
+    const millis = numeric * 24 * 60 * 60 * 1000
+    return new Date(excelEpoch.getTime() + millis)
+  }
+
+  const parsed = new Date(trimmed)
+  if (isNaN(parsed.getTime())) return null
+  return parsed
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,35 +105,48 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check file type
-    if (!file.name.endsWith('.csv')) {
+    const fileName = file.name.toLowerCase()
+    const isCSV = fileName.endsWith('.csv')
+    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+
+    if (!isCSV && !isExcel) {
       return NextResponse.json(
-        { error: 'File must be a CSV file' },
+        { error: 'File must be CSV (.csv) or Excel (.xlsx, .xls) format' },
         { status: 400 }
       )
     }
 
-    // Read file content
-    const fileContent = await file.text()
+    const fileBuffer = await file.arrayBuffer()
+    const uint8Array = new Uint8Array(fileBuffer)
 
-    // Parse CSV manually since Papa.parse has TypeScript issues
-    const lines = fileContent.split('\n').filter(line => line.trim())
-    if (lines.length < 2) {
-      return NextResponse.json(
-        { error: 'CSV file must have headers and at least one data row' },
-        { status: 400 }
-      )
-    }
+    let data: Record<string, any>[] = []
 
-    const headers = lines[0].split(',').map(h => h.trim())
-    const data = lines.slice(1).map(line => {
-      const values = line.split(',').map(v => v.trim())
-      const row: any = {}
-      headers.forEach((header, index) => {
-        row[header] = values[index] || ''
+    if (isExcel) {
+      const workbook = XLSX.read(uint8Array, { type: 'array' })
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+      data = XLSX.utils.sheet_to_json(worksheet, { defval: '' }) as Record<string, any>[]
+    } else {
+      const fileContent = await file.text()
+      const lines = fileContent.split(/\r?\n/).filter(line => line.trim())
+
+      if (lines.length < 2) {
+        return NextResponse.json(
+          { error: 'File must have headers and at least one data row' },
+          { status: 400 }
+        )
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim())
+      data = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim())
+        const row: Record<string, string> = {}
+        headers.forEach((header, index) => {
+          row[header] = values[index] || ''
+        })
+        return row
       })
-      return row
-    })
+    }
 
     if (!data || data.length === 0) {
       return NextResponse.json(
@@ -64,70 +155,68 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate headers
-    const firstRow = data[0] as any
-    const actualHeaders = Object.keys(firstRow)
-    
-    const missingHeaders = EXPECTED_HEADERS.filter(header => !actualHeaders.includes(header))
-    const extraHeaders = actualHeaders.filter(header => !EXPECTED_HEADERS.includes(header))
+    const firstRow = data[0]
+    const actualHeaders = Object.keys(firstRow).map(canonicalHeader)
+    const actualHeaderSet = new Set(actualHeaders)
+    const missingHeaders = REQUIRED_HEADERS.filter(header => !actualHeaderSet.has(header))
 
-    if (missingHeaders.length > 0 || extraHeaders.length > 0) {
+    if (missingHeaders.length > 0) {
       return NextResponse.json(
-        { 
-          error: 'CSV headers do not match expected format',
+        {
+          error: 'Import file is missing required headers',
           missingHeaders,
-          extraHeaders,
-          expectedHeaders: EXPECTED_HEADERS,
-          actualHeaders
+          expectedHeaders: REQUIRED_HEADERS
         },
         { status: 400 }
       )
     }
 
-    // Process data and insert into database
     let processedCount = 0
     let errorCount = 0
     const rowErrors: string[] = []
 
     for (let i = 0; i < data.length; i++) {
       try {
-        const row = data[i] as any
         const rowNumber = i + 2 // +2 because CSV is 1-indexed and we have headers
 
-        // Extract data from row
-        const customerId = row['Customer ID']?.trim()
-        const customerName = row['Customer Name']?.trim()
-        const lessonId = row['Lesson ID']?.trim()
-        const lessonDate = row['Lesson Date']?.trim()
-        const instructorName = row['Instructor Name']?.trim()
-        const lessonType = row['Lesson Type']?.trim()
-        const customerSymptoms = row['Customer Symptoms']?.trim()
-        const customerImprovements = row['Customer Improvements']?.trim()
+        const rawRow = data[i] as Record<string, any>
+        const row: Record<string, string> = {}
+        Object.entries(rawRow).forEach(([key, value]) => {
+          const canonical = canonicalHeader(key)
+          row[canonical] = (value ?? '').toString().trim()
+        })
 
-        // Validate required fields
+        const customerId = row['customer id']
+        const customerName = row['customer name']
+        const lessonId = row['lesson id']
+        const lessonDate = row['lesson date']
+        const instructorName = row['instructor name']
+        const lessonType = row['lesson type']
+        const locationName = row['location name']
+        const customerSymptoms = row['customer symptoms']
+        const customerImprovements = row['customer improvements']
+        const lessonContent = row['lesson content']
+
         if (!customerId || !customerName || !lessonId || !lessonDate || !instructorName) {
           rowErrors.push(`Row ${rowNumber}: Missing required fields`)
           errorCount++
           continue
         }
 
-        // Parse lesson date
-        const parsedDate = new Date(lessonDate)
-        if (isNaN(parsedDate.getTime())) {
+        const parsedDate = parseLessonDate(lessonDate)
+        if (!parsedDate) {
           rowErrors.push(`Row ${rowNumber}: Invalid lesson date format`)
           errorCount++
           continue
         }
 
-        // Use transaction to ensure data consistency
         await prisma.$transaction(async (tx) => {
-          // Create or update customer
           const customer = await tx.customer.upsert({
             where: { id: customerId },
             update: {
               firstName: customerName.split(' ')[0] || '',
               lastName: customerName.split(' ').slice(1).join(' ') || '',
-              email: `${customerId}@imported.local`, // Generate email if not exists
+              email: `${customerId}@imported.local`,
             },
             create: {
               id: customerId,
@@ -137,7 +226,6 @@ export async function POST(request: NextRequest) {
             }
           })
 
-          // Create or update instructor (User with INSTRUCTOR role)
           const instructor = await tx.user.upsert({
             where: { email: `${instructorName.replace(/\s+/g, '')}@imported.local` },
             update: {
@@ -154,27 +242,23 @@ export async function POST(request: NextRequest) {
             }
           })
 
-          // Create or update lesson
+          const locationId = await ensureLocation(tx, locationName)
+
           const lesson = await tx.lesson.upsert({
             where: { id: lessonId },
             update: {
               lessonType: lessonType || 'Group',
               instructorId: instructor.id,
-              locationId: 'default-location-id', // You might want to handle this differently
+              locationId
             },
             create: {
               id: lessonId,
               lessonType: lessonType || 'Group',
               instructorId: instructor.id,
-              locationId: 'default-location-id', // You might want to handle this differently
-              // title: `Lesson ${lessonId}`, // Removed as it is not part of LessonCreateInput
-              // startTime: new Date().toISOString(), // Provide a default start time
-              // endTime: new Date(new Date().getTime() + 3600000).toISOString(), // Provide a default end time (1 hour later)
-              // courseCompletionStatus: 'incomplete' // Provide a default course completion status
+              locationId
             }
           })
 
-          // Create or update lesson participant
           await tx.lessonParticipant.upsert({
             where: {
               customerId_lessonId: {
@@ -195,6 +279,9 @@ export async function POST(request: NextRequest) {
               status: 'attended'
             }
           })
+        }, {
+          maxWait: 10000, // Wait up to 10 seconds to start transaction
+          timeout: 30000, // Transaction timeout of 30 seconds
         })
 
         processedCount++
@@ -204,14 +291,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Return results
     if (errorCount > 0) {
       return NextResponse.json({
         message: `Import completed with ${errorCount} errors`,
         processedCount,
         errorCount,
-        errors: rowErrors.slice(0, 10) // Limit error messages
-      }, { status: 207 }) // 207 Multi-Status
+        errors: rowErrors.slice(0, 10)
+      }, { status: 207 })
     }
 
     return NextResponse.json({
