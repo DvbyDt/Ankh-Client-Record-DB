@@ -25,13 +25,13 @@ const requireManager = (request: NextRequest) => {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { lessonId: string; customerId: string } }
+  { params }: { params: Promise<{ lessonId: string; customerId: string }> }
 ) {
   try {
     const auth = requireManager(request)
     if ('error' in auth) return auth.error
 
-    const { lessonId, customerId } = params
+    const { lessonId, customerId } = await params
 
     if (!lessonId || !customerId) {
       return NextResponse.json(
