@@ -153,6 +153,9 @@ export default function HomePage() {
   const [showAllUsersDialog, setShowAllUsersDialog] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'MANAGER' | 'INSTRUCTOR'>('ALL');
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [selectedUserInfo, setSelectedUserInfo] = useState<User | null>(null);
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -369,6 +372,41 @@ export default function HomePage() {
     } finally {
       setIsLoadingUsers(false);
     }
+  };
+
+  // Handle user deletion
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    setConfirmDialogData({
+      title: 'Delete User',
+      message: `Are you sure you want to delete user "${userName}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        const token = Cookies.get('jwt-token')
+        if (!token) {
+          setToastMessage('Authentication required')
+          return
+        }
+        setIsDeletingUser(true);
+        try {
+          const response = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          if (response.ok) {
+            setToastMessage(`User "${userName}" deleted successfully`);
+            fetchAllUsers(); // Refresh the list
+            setSelectedUserInfo(null);
+          } else {
+            const data = await response.json();
+            setToastMessage(data.error || 'Failed to delete user');
+          }
+        } catch (error) {
+          setToastMessage('Error deleting user');
+        } finally {
+          setIsDeletingUser(false);
+        }
+      }
+    });
+    setShowConfirmDialog(true);
   };
 
   // Handle user creation
@@ -809,6 +847,26 @@ export default function HomePage() {
                   <CardDescription>View all users in the system</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {/* Role Filter Tabs */}
+                  <div className="flex gap-2 mb-6 border-b">
+                    {(['ALL', 'MANAGER', 'INSTRUCTOR'] as const).map((role) => (
+                      <button
+                        key={role}
+                        onClick={() => setUserRoleFilter(role)}
+                        className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                          userRoleFilter === role
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        {role === 'ALL' ? 'All Users' : role}
+                        <span className="ml-2 text-xs font-normal">
+                          ({allUsers.filter(u => role === 'ALL' || u.role === role).length})
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
                   {isLoadingUsers ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="h-8 w-8 animate-spin" />
@@ -817,32 +875,54 @@ export default function HomePage() {
                     <div className="overflow-x-auto">
                       <Table className="table-fixed w-full">
                         <TableHeader>
-                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Name</TableHead>
-                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Username</TableHead>
-                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Email</TableHead>
-                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Role</TableHead>
-                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Created At</TableHead>
+                          <TableHead className="w-[18%] px-4 py-3 font-semibold">Name</TableHead>
+                          <TableHead className="w-[18%] px-4 py-3 font-semibold">Username</TableHead>
+                          <TableHead className="w-[18%] px-4 py-3 font-semibold">Email</TableHead>
+                          <TableHead className="w-[13%] px-4 py-3 font-semibold">Role</TableHead>
+                          <TableHead className="w-[16%] px-4 py-3 font-semibold">Created At</TableHead>
+                          <TableHead className="w-[17%] px-4 py-3 font-semibold text-center">Action</TableHead>
                         </TableHeader>
                         <TableBody>
-                          {allUsers.length > 0 ? (
-                            allUsers.map((user) => (
-                              <TableRow key={user.id}>
-                                <TableCell className="w-[20%] px-4 py-3">{`${user.firstName} ${user.lastName}`}</TableCell>
-                                <TableCell className="w-[20%] px-4 py-3">{user.username}</TableCell>
-                                <TableCell className="w-[20%] px-4 py-3 break-all">{user.email}</TableCell>
-                                <TableCell className="w-[15%] px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs ${
-                                    user.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                                  }`}>
-                                    {user.role}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="w-[15%] px-4 py-3">{new Date(user.createdAt || '').toLocaleDateString()}</TableCell>
-                              </TableRow>
-                            ))
+                          {allUsers
+                            .filter(user => userRoleFilter === 'ALL' || user.role === userRoleFilter)
+                            .length > 0 ? (
+                            allUsers
+                              .filter(user => userRoleFilter === 'ALL' || user.role === userRoleFilter)
+                              .map((user) => (
+                                <TableRow key={user.id}>
+                                  <TableCell className="w-[18%] px-4 py-3">
+                                    <button
+                                      onClick={() => setSelectedUserInfo(user)}
+                                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                    >
+                                      {`${user.firstName} ${user.lastName}`}
+                                    </button>
+                                  </TableCell>
+                                  <TableCell className="w-[18%] px-4 py-3">{user.username}</TableCell>
+                                  <TableCell className="w-[18%] px-4 py-3 break-all">{user.email}</TableCell>
+                                  <TableCell className="w-[13%] px-4 py-3">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      user.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                    }`}>
+                                      {user.role}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="w-[16%] px-4 py-3">{new Date(user.createdAt || '').toLocaleDateString()}</TableCell>
+                                  <TableCell className="w-[17%] px-4 py-3 text-center">
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => handleDeleteUser(user.id, `${user.firstName} ${user.lastName}`)}
+                                      disabled={isDeletingUser}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={5} className="text-center text-gray-500">
+                              <TableCell colSpan={6} className="text-center text-gray-500 py-8">
                                 No users found
                               </TableCell>
                             </TableRow>
@@ -853,6 +933,44 @@ export default function HomePage() {
                   )}
                 </CardContent>
               </Card>
+            )}
+
+            {/* User Info Modal */}
+            {selectedUserInfo && (
+              <Dialog open={!!selectedUserInfo} onOpenChange={(open) => !open && setSelectedUserInfo(null)}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{selectedUserInfo.firstName} {selectedUserInfo.lastName}</DialogTitle>
+                    <DialogDescription>
+                      User Information
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-xs text-gray-600">Username</Label>
+                      <p className="font-medium">{selectedUserInfo.username}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Email</Label>
+                      <p className="font-medium break-all">{selectedUserInfo.email}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Role</Label>
+                      <p className="font-medium">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          selectedUserInfo.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {selectedUserInfo.role}
+                        </span>
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Created At</Label>
+                      <p className="font-medium">{new Date(selectedUserInfo.createdAt || '').toLocaleString()}</p>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             )}
 
             {/* Search Section */}
