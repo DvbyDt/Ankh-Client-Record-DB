@@ -41,6 +41,7 @@ interface Customer {
   lastName: string
   email: string
   phone?: string
+  createdAt?: string
 }
 
 interface LessonFormData {
@@ -156,6 +157,12 @@ export default function HomePage() {
   const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'MANAGER' | 'INSTRUCTOR'>('ALL');
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [selectedUserInfo, setSelectedUserInfo] = useState<User | null>(null);
+
+  // View all customers dialog state
+  const [showAllCustomersDialog, setShowAllCustomersDialog] = useState(false);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+  const [selectedCustomerInfo, setSelectedCustomerInfo] = useState<Customer | null>(null);
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -371,6 +378,24 @@ export default function HomePage() {
       setToastMessage('Error fetching users');
     } finally {
       setIsLoadingUsers(false);
+    }
+  };
+
+  // Fetch all customers
+  const fetchAllCustomers = async () => {
+    setIsLoadingCustomers(true);
+    try {
+      const response = await fetch('/api/customers');
+      if (response.ok) {
+        const data = await response.json();
+        setAllCustomers(data.customers || []);
+      } else {
+        setToastMessage('Failed to fetch customers');
+      }
+    } catch (error) {
+      setToastMessage('Error fetching customers');
+    } finally {
+      setIsLoadingCustomers(false);
     }
   };
 
@@ -739,6 +764,21 @@ export default function HomePage() {
                   {showAllUsersDialog ? 'Hide All Users' : 'View All Users'}
                 </Button>
               )}
+              {currentUser?.role === 'MANAGER' && (
+                <Button
+                  variant="outline"
+                  className="px-6"
+                  onClick={() => {
+                    setShowAllCustomersDialog(!showAllCustomersDialog);
+                    if (!showAllCustomersDialog && allCustomers.length === 0) {
+                      fetchAllCustomers();
+                    }
+                  }}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  {showAllCustomersDialog ? 'Hide All Customers' : 'View All Customers'}
+                </Button>
+              )}
               <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="px-6">
@@ -935,6 +975,61 @@ export default function HomePage() {
               </Card>
             )}
 
+            {/* All Customers Table */}
+            {currentUser?.role === 'MANAGER' && showAllCustomersDialog && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>All Customers</CardTitle>
+                  <CardDescription>View all customers in the system</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingCustomers ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table className="table-fixed w-full">
+                        <TableHeader>
+                          <TableHead className="w-[28%] px-4 py-3 font-semibold">Name</TableHead>
+                          <TableHead className="w-[28%] px-4 py-3 font-semibold">Email</TableHead>
+                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Phone</TableHead>
+                          <TableHead className="w-[24%] px-4 py-3 font-semibold">Created At</TableHead>
+                        </TableHeader>
+                        <TableBody>
+                          {allCustomers.length > 0 ? (
+                            allCustomers.map((customer) => (
+                              <TableRow key={customer.id}>
+                                <TableCell className="w-[28%] px-4 py-3">
+                                  <button
+                                    onClick={() => setSelectedCustomerInfo(customer)}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                  >
+                                    {`${customer.firstName} ${customer.lastName}`}
+                                  </button>
+                                </TableCell>
+                                <TableCell className="w-[28%] px-4 py-3 break-all">{customer.email}</TableCell>
+                                <TableCell className="w-[20%] px-4 py-3">{customer.phone || 'N/A'}</TableCell>
+                                <TableCell className="w-[24%] px-4 py-3">
+                                  {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : 'N/A'}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                                No customers found
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* User Info Modal */}
             {selectedUserInfo && (
               <Dialog open={!!selectedUserInfo} onOpenChange={(open) => !open && setSelectedUserInfo(null)}>
@@ -967,6 +1062,36 @@ export default function HomePage() {
                     <div>
                       <Label className="text-xs text-gray-600">Created At</Label>
                       <p className="font-medium">{new Date(selectedUserInfo.createdAt || '').toLocaleString()}</p>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Customer Info Modal */}
+            {selectedCustomerInfo && (
+              <Dialog open={!!selectedCustomerInfo} onOpenChange={(open) => !open && setSelectedCustomerInfo(null)}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{selectedCustomerInfo.firstName} {selectedCustomerInfo.lastName}</DialogTitle>
+                    <DialogDescription>
+                      Customer Information
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-xs text-gray-600">Email</Label>
+                      <p className="font-medium break-all">{selectedCustomerInfo.email}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Phone</Label>
+                      <p className="font-medium">{selectedCustomerInfo.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Created At</Label>
+                      <p className="font-medium">
+                        {selectedCustomerInfo.createdAt ? new Date(selectedCustomerInfo.createdAt).toLocaleString() : 'N/A'}
+                      </p>
                     </div>
                   </div>
                 </DialogContent>
