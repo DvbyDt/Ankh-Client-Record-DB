@@ -217,7 +217,6 @@ export async function POST(request: NextRequest) {
               firstName: customerName.split(' ')[0] || '',
               lastName: customerName.split(' ').slice(1).join(' ') || '',
               email: `${customerId}@imported.local`,
-              deletedAt: null,
             },
             create: {
               id: customerId,
@@ -232,7 +231,6 @@ export async function POST(request: NextRequest) {
             update: {
               firstName: instructorName.split(' ')[0] || '',
               lastName: instructorName.split(' ').slice(1).join(' ') || '',
-              deletedAt: null,
             },
             create: {
               username: `${instructorName.replace(/\s+/g, '')}_${Date.now()}`,
@@ -251,8 +249,7 @@ export async function POST(request: NextRequest) {
             update: {
               lessonType: lessonType || 'Group',
               instructorId: instructor.id,
-              locationId,
-              deletedAt: null
+              locationId
             },
             create: {
               id: lessonId,
@@ -272,8 +269,7 @@ export async function POST(request: NextRequest) {
             update: {
               customerSymptoms: customerSymptoms || null,
               customerImprovements: customerImprovements || null,
-              status: 'attended',
-              deletedAt: null
+              status: 'attended'
             },
             create: {
               customerId: customer.id,

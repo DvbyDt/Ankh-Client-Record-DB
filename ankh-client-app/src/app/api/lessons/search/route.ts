@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
     // Search for lessons by location name
     const lessons = await prisma.lesson.findMany({
       where: {
-        deletedAt: null,
         location: {
           name: {
             contains: location,
@@ -40,12 +39,6 @@ export async function GET(request: NextRequest) {
           }
         },
         lessonParticipants: {
-          where: {
-            deletedAt: null,
-            customer: {
-              deletedAt: null
-            }
-          },
           include: {
             customer: {
               select: {

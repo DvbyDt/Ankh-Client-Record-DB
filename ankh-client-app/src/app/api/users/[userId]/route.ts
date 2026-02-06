@@ -13,11 +13,11 @@ const requireManager = (request: NextRequest) => {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { role?: string; userId?: string }
+    const decoded = jwt.verify(token, JWT_SECRET) as { role?: string }
     if (decoded.role !== 'MANAGER') {
       return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
     }
-    return { ok: true, userId: decoded.userId, role: decoded.role }
+    return { ok: true }
   } catch {
     return { error: NextResponse.json({ error: 'Invalid token' }, { status: 401 }) }
   }
@@ -45,7 +45,7 @@ export async function DELETE(
       where: { id: userId }
     })
 
-    if (!userExists || userExists.deletedAt) {
+    if (!userExists) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -55,7 +55,7 @@ export async function DELETE(
     // Prevent deleting the last manager
     if (userExists.role === 'MANAGER') {
       const managerCount = await prisma.user.count({
-        where: { role: 'MANAGER', deletedAt: null }
+        where: { role: 'MANAGER' }
       })
       if (managerCount <= 1) {
         return NextResponse.json(
@@ -65,26 +65,10 @@ export async function DELETE(
       }
     }
 
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: { deletedAt: new Date() }
-      }),
-      prisma.auditLog.create({
-        data: {
-          action: 'SOFT_DELETE',
-          entityType: 'USER',
-          entityId: userId,
-          actorId: auth.userId || null,
-          actorRole: 'MANAGER',
-          metadata: {
-            username: userExists.username,
-            email: userExists.email,
-            role: userExists.role
-          }
-        }
-      })
-    ])
+    // Delete user and cascade delete their lessons
+    await prisma.user.delete({
+      where: { id: userId }
+    })
 
     return NextResponse.json(
       { message: 'User deleted successfully' },

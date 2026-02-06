@@ -92,29 +92,26 @@ export async function GET(request: NextRequest) {
   const role = searchParams.get('role');
 
     const users = await prisma.user.findMany({
-      where: {
-        deletedAt: null,
-        ...(search
-          ? role
-            ? {
-                role: role as 'MANAGER' | 'INSTRUCTOR',
-                OR: [
-                  { firstName: { contains: search, mode: 'insensitive' } },
-                  { lastName: { contains: search, mode: 'insensitive' } },
-                  { email: { contains: search, mode: 'insensitive' } }
-                ]
-              }
-            : {
-                OR: [
-                  { firstName: { contains: search, mode: 'insensitive' } },
-                  { lastName: { contains: search, mode: 'insensitive' } },
-                  { email: { contains: search, mode: 'insensitive' } }
-                ]
-              }
-          : role
-            ? { role: role as 'MANAGER' | 'INSTRUCTOR' }
-            : {})
-      },
+      where: search
+        ? role
+          ? {
+              role: role as 'MANAGER' | 'INSTRUCTOR',
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } }
+              ]
+            }
+          : {
+            OR: [
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } }
+            ]
+          }
+        : role
+          ? { role: role as 'MANAGER' | 'INSTRUCTOR' }
+          : {},
       select: {
         id: true,
         username: true,

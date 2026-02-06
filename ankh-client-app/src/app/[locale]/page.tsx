@@ -59,22 +59,6 @@ interface CustomerLessonParticipant {
   customerImprovements?: string
 }
 
-interface AuditLog {
-  id: string
-  action: string
-  entityType: string
-  entityId?: string
-  createdAt: string
-  actor?: {
-    id: string
-    firstName: string
-    lastName: string
-    username: string
-    role: UserRole
-  } | null
-  metadata?: Record<string, any>
-}
-
 interface LessonFormData {
   lessonDate: string
   instructorId: string
@@ -197,11 +181,6 @@ export default function HomePage() {
   const [isLoadingCustomerDetails, setIsLoadingCustomerDetails] = useState(false);
   const [customerCount, setCustomerCount] = useState<number | null>(null);
 
-  // Audit log dialog state
-  const [showAuditLogDialog, setShowAuditLogDialog] = useState(false);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [isLoadingAuditLogs, setIsLoadingAuditLogs] = useState(false);
-
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmDialogData, setConfirmDialogData] = useState<{
@@ -238,10 +217,6 @@ export default function HomePage() {
             setToastMessage('Customer deleted successfully!');
             // Remove from search results
             setSearchResults(searchResults.filter(r => r.id !== customerId));
-            setAllCustomers(allCustomers.filter(c => c.id !== customerId));
-            if (selectedCustomerInfo?.id === customerId) {
-              setSelectedCustomerInfo(null);
-            }
           } else {
             const errorData = await response.json();
             setToastMessage(errorData.error || 'Failed to delete customer.');
@@ -281,9 +256,6 @@ export default function HomePage() {
             setToastMessage('Lesson record deleted successfully!');
             // Refresh the search to update the data
             handleSearch();
-            if (selectedCustomerInfo?.id === customerId) {
-              handleViewCustomerDetails(customerId);
-            }
           } else {
             const errorData = await response.json();
             setToastMessage(errorData.error || 'Failed to delete lesson record.');
@@ -486,32 +458,6 @@ export default function HomePage() {
       setToastMessage('Error loading customer details');
     } finally {
       setIsLoadingCustomerDetails(false);
-    }
-  };
-
-  // Fetch audit logs (manager only)
-  const fetchAuditLogs = async () => {
-    const token = Cookies.get('jwt-token')
-    if (!token) {
-      setToastMessage('Authentication required')
-      return
-    }
-
-    setIsLoadingAuditLogs(true);
-    try {
-      const response = await fetch('/api/audit-logs', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setAuditLogs(data.logs || [])
-      } else {
-        setToastMessage('Failed to fetch audit logs')
-      }
-    } catch (error) {
-      setToastMessage('Error fetching audit logs')
-    } finally {
-      setIsLoadingAuditLogs(false)
     }
   };
 
@@ -895,21 +841,6 @@ export default function HomePage() {
                   {showAllCustomersDialog ? 'Hide All Customers' : 'View All Customers'}
                 </Button>
               )}
-              {currentUser?.role === 'MANAGER' && (
-                <Button
-                  variant="outline"
-                  className="px-6"
-                  onClick={() => {
-                    setShowAuditLogDialog(!showAuditLogDialog);
-                    if (!showAuditLogDialog && auditLogs.length === 0) {
-                      fetchAuditLogs();
-                    }
-                  }}
-                >
-                  <Users className="mr-2 h-4 w-4" />
-                  {showAuditLogDialog ? 'Hide Audit Log' : 'View Audit Log'}
-                </Button>
-              )}
               <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="px-6">
@@ -1289,62 +1220,6 @@ export default function HomePage() {
                       )}
                     </div>
                   </div>
-                </DialogContent>
-              </Dialog>
-            )}
-
-            {/* Audit Log Dialog (Manager Only) */}
-            {currentUser?.role === 'MANAGER' && showAuditLogDialog && (
-              <Dialog open={showAuditLogDialog} onOpenChange={setShowAuditLogDialog}>
-                <DialogContent className="max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>Audit Log</DialogTitle>
-                    <DialogDescription>Recent system actions</DialogDescription>
-                  </DialogHeader>
-                  {isLoadingAuditLogs ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table className="table-fixed w-full">
-                        <TableHeader>
-                          <TableHead className="w-[18%] px-4 py-3 font-semibold">Time</TableHead>
-                          <TableHead className="w-[16%] px-4 py-3 font-semibold">Action</TableHead>
-                          <TableHead className="w-[18%] px-4 py-3 font-semibold">Entity</TableHead>
-                          <TableHead className="w-[24%] px-4 py-3 font-semibold">Actor</TableHead>
-                          <TableHead className="w-[24%] px-4 py-3 font-semibold">Details</TableHead>
-                        </TableHeader>
-                        <TableBody>
-                          {auditLogs.length > 0 ? (
-                            auditLogs.map((log) => (
-                              <TableRow key={log.id}>
-                                <TableCell className="w-[18%] px-4 py-3 text-sm">
-                                  {new Date(log.createdAt).toLocaleString()}
-                                </TableCell>
-                                <TableCell className="w-[16%] px-4 py-3 text-sm">{log.action}</TableCell>
-                                <TableCell className="w-[18%] px-4 py-3 text-sm">{log.entityType}</TableCell>
-                                <TableCell className="w-[24%] px-4 py-3 text-sm">
-                                  {log.actor
-                                    ? `${log.actor.firstName} ${log.actor.lastName} (${log.actor.role})`
-                                    : 'System'}
-                                </TableCell>
-                                <TableCell className="w-[24%] px-4 py-3 text-sm break-all">
-                                  {log.metadata?.email || log.metadata?.name || log.entityId || '—'}
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                                No audit logs found
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
                 </DialogContent>
               </Dialog>
             )}
