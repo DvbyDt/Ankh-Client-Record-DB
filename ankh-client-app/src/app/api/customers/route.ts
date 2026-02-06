@@ -5,6 +5,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
+    const countOnly = searchParams.get('countOnly') === 'true'
+
+    if (countOnly) {
+      const count = await prisma.customer.count()
+      return NextResponse.json({ count })
+    }
 
     const customers = await prisma.customer.findMany({
       where: search

@@ -42,6 +42,21 @@ interface Customer {
   email: string
   phone?: string
   createdAt?: string
+  lessonParticipants?: CustomerLessonParticipant[]
+}
+
+interface CustomerLessonParticipant {
+  lesson: {
+    id: string
+    lessonType?: string
+    createdAt?: string
+    instructor: {
+      firstName: string
+      lastName: string
+    }
+  }
+  customerSymptoms?: string
+  customerImprovements?: string
 }
 
 interface LessonFormData {
@@ -163,6 +178,8 @@ export default function HomePage() {
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [selectedCustomerInfo, setSelectedCustomerInfo] = useState<Customer | null>(null);
+  const [isLoadingCustomerDetails, setIsLoadingCustomerDetails] = useState(false);
+  const [customerCount, setCustomerCount] = useState<number | null>(null);
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -282,6 +299,7 @@ export default function HomePage() {
     if (isLoggedIn) {
       fetchInstructors()
       fetchLocations()
+      fetchCustomerCount()
     }
   }, [isLoggedIn])
 
@@ -396,6 +414,50 @@ export default function HomePage() {
       setToastMessage('Error fetching customers');
     } finally {
       setIsLoadingCustomers(false);
+    }
+  };
+
+  // Fetch customer count for system status
+  const fetchCustomerCount = async () => {
+    try {
+      const response = await fetch('/api/customers?countOnly=true');
+      if (response.ok) {
+        const data = await response.json();
+        setCustomerCount(data.count ?? 0);
+      }
+    } catch (error) {
+      setCustomerCount(null);
+    }
+  };
+
+  // Fetch selected customer details with records
+  const handleViewCustomerDetails = async (customerId: string) => {
+    setIsLoadingCustomerDetails(true);
+    const basicCustomer = allCustomers.find((customer) => customer.id === customerId) || null;
+    if (basicCustomer) {
+      setSelectedCustomerInfo(basicCustomer);
+    }
+    try {
+      const token = Cookies.get('jwt-token')
+      if (!token) {
+        setToastMessage('Authentication required')
+        setIsLoadingCustomerDetails(false)
+        return
+      }
+
+      const response = await fetch(`/api/customers/${customerId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedCustomerInfo(data.customer || null);
+      } else {
+        setToastMessage('Failed to load customer details');
+      }
+    } catch (error) {
+      setToastMessage('Error loading customer details');
+    } finally {
+      setIsLoadingCustomerDetails(false);
     }
   };
 
@@ -1002,7 +1064,7 @@ export default function HomePage() {
                               <TableRow key={customer.id}>
                                 <TableCell className="w-[28%] px-4 py-3">
                                   <button
-                                    onClick={() => setSelectedCustomerInfo(customer)}
+                                    onClick={() => handleViewCustomerDetails(customer.id)}
                                     className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
                                   >
                                     {`${customer.firstName} ${customer.lastName}`}
@@ -1092,6 +1154,70 @@ export default function HomePage() {
                       <p className="font-medium">
                         {selectedCustomerInfo.createdAt ? new Date(selectedCustomerInfo.createdAt).toLocaleString() : 'N/A'}
                       </p>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium mb-2">{t('CustomerSearch.lessonDetails')}</h4>
+                      {isLoadingCustomerDetails ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        </div>
+                      ) : selectedCustomerInfo.lessonParticipants && selectedCustomerInfo.lessonParticipants.length > 0 ? (
+                        <div className="space-y-3">
+                          <div className="text-sm text-gray-600">
+                            <span className="font-medium">{t('CustomerSearch.lessons')}: </span>
+                            {selectedCustomerInfo.lessonParticipants.length}
+                          </div>
+
+                          <div className="border border-gray-200 rounded-lg p-3">
+                            <h5 className="text-sm font-medium mb-2">{t('CustomerSearch.initialCondition')}</h5>
+                            <div className="grid gap-2 text-sm">
+                              <div>
+                                <span className="font-medium">{t('CustomerSearch.mainConcern')}: </span>
+                                {selectedCustomerInfo.lessonParticipants[0]?.customerSymptoms || t('Common.na')}
+                              </div>
+                              <div>
+                                <span className="font-medium">{t('CustomerSearch.currentHealthIssue')}: </span>
+                                {selectedCustomerInfo.lessonParticipants[selectedCustomerInfo.lessonParticipants.length - 1]?.customerSymptoms || t('Common.na')}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            {selectedCustomerInfo.lessonParticipants.map((participant, index) => (
+                              <div key={index} className="border border-gray-100 rounded-md p-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="text-sm font-medium">
+                                    {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
+                                  </div>
+                                  {currentUser?.role === 'MANAGER' && (
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => handleDeleteLessonParticipant(selectedCustomerInfo.id, participant.lesson.id, `${selectedCustomerInfo.firstName} ${selectedCustomerInfo.lastName}`)}
+                                      disabled={isDeletingLesson}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
+                                  <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms || t('Common.na')}
+                                </div>
+                                <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
+                                  <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements || t('Common.na')}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-2">
+                                  {participant.lesson.lessonType ? `${t('CustomerSearch.lessonType')}: ${participant.lesson.lessonType}` : ''}
+                                  {participant.lesson.createdAt ? ` · ${t('CustomerSearch.lessonDate')}: ${new Date(participant.lesson.createdAt).toLocaleDateString()}` : ''}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500 italic">No lessons found for this customer.</div>
+                      )}
                     </div>
                   </div>
                 </DialogContent>
@@ -1460,6 +1586,10 @@ export default function HomePage() {
                   <div className="flex justify-between">
                     <span>{t('HomePage.locations')}</span>
                     <span className="font-medium">{locations?.length || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('HomePage.customers')}</span>
+                    <span className="font-medium">{customerCount ?? 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>{t('HomePage.userRole')}</span>

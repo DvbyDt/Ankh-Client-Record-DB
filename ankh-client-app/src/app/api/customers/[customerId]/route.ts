@@ -23,6 +23,76 @@ const requireManager = (request: NextRequest) => {
   }
 }
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ customerId: string }> }
+) {
+  try {
+    const auth = requireManager(request)
+    if ('error' in auth) return auth.error
+
+    const { customerId } = await params
+
+    if (!customerId) {
+      return NextResponse.json(
+        { error: 'Customer ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+        lessonParticipants: {
+          select: {
+            customerSymptoms: true,
+            customerImprovements: true,
+            lesson: {
+              select: {
+                id: true,
+                lessonType: true,
+                createdAt: true,
+                instructor: {
+                  select: {
+                    firstName: true,
+                    lastName: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            lesson: {
+              createdAt: 'desc'
+            }
+          }
+        }
+      }
+    })
+
+    if (!customer) {
+      return NextResponse.json(
+        { error: 'Customer not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({ customer })
+  } catch (error) {
+    console.error('Error fetching customer:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }

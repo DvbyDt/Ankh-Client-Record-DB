@@ -80,6 +80,7 @@
     "systemStatusDesc": "Current system information",
     "instructors": "Instructors:",
     "locations": "Locations:",
+    "customers": "Customers:",
     "userRole": "User Role:",
     "loginFailed": "Login failed. Please try again.",
     "userCreatedSuccess": "User created successfully!",
