@@ -8,20 +8,25 @@ export async function GET(request: NextRequest) {
     const countOnly = searchParams.get('countOnly') === 'true'
 
     if (countOnly) {
-      const count = await prisma.customer.count()
+      const count = await prisma.customer.count({
+        where: { deletedAt: null }
+      })
       return NextResponse.json({ count })
     }
 
     const customers = await prisma.customer.findMany({
-      where: search
-        ? {
-            OR: [
-              { firstName: { contains: search, mode: 'insensitive' } },
-              { lastName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } }
-            ]
-          }
-        : {},
+      where: {
+        deletedAt: null,
+        ...(search
+          ? {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } }
+              ]
+            }
+          : {})
+      },
       select: {
         id: true,
         firstName: true,

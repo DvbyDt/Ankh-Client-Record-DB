@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     // Search for customers by name (first name, last name, or email)
     const customers = await prisma.customer.findMany({
       where: {
+        deletedAt: null,
         OR: [
           { firstName: { contains: name, mode: 'insensitive' } },
           { lastName: { contains: name, mode: 'insensitive' } },
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
         phone: true,
         createdAt: true,
         lessonParticipants: {
+          where: {
+            deletedAt: null
+          },
           select: {
             lesson: {
               select: {

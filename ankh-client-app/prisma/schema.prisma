@@ -30,9 +30,11 @@ model User {
   email     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   // Relationships
   lessons Lesson[]
+  auditLogs AuditLog[] @relation("AuditActor")
 
   @@map("users")
 }
@@ -57,6 +59,7 @@ model Customer {
   phone     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   // Many-to-many relationship with lessons
   lessonParticipants LessonParticipant[]
@@ -69,6 +72,7 @@ model Lesson {
   lessonType            String   // 'Group' or 'Individual'
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  deletedAt             DateTime?
 
   // Foreign keys
   instructorId String
@@ -91,6 +95,7 @@ model LessonParticipant {
   status               String   @default("attended") // 'attended', 'absent', 'cancelled'
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  deletedAt            DateTime?
 
   // Relationships
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -99,4 +104,20 @@ model LessonParticipant {
   // Composite unique constraint
   @@unique([customerId, lessonId])
   @@map("lesson_participants")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String?
+  actorId    String?
+  actorRole  UserRole?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("audit_logs")
 }

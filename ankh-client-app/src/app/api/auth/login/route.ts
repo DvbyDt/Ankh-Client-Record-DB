@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user by username
-    const user = await prisma.user.findUnique({
-      where: { username },
+    const user = await prisma.user.findFirst({
+      where: { username, deletedAt: null },
       select: {
         id: true,
         username: true,

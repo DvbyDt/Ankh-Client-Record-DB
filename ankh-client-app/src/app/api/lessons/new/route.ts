@@ -45,7 +45,12 @@ export async function POST(request: NextRequest) {
         for (const customerData of customers) {
             const customer = await prisma.customer.upsert({
                 where: { email: customerData.email },
-                update: {},
+                update: {
+                    firstName: customerData.firstName,
+                    lastName: customerData.lastName,
+                    phone: customerData.phone || null,
+                    deletedAt: null
+                },
                 create: {
                     email: customerData.email,
                     firstName: customerData.firstName,
@@ -55,8 +60,20 @@ export async function POST(request: NextRequest) {
             });
 
             // Create lesson participant entry
-            await prisma.lessonParticipant.create({
-                data: {
+            await prisma.lessonParticipant.upsert({
+                where: {
+                    customerId_lessonId: {
+                        customerId: customer.id,
+                        lessonId: newLesson.id
+                    }
+                },
+                update: {
+                    status: "attended",
+                    customerSymptoms: customerData?.symptoms,
+                    customerImprovements: customerData?.improvements,
+                    deletedAt: null
+                },
+                create: {
                     lessonId: newLesson.id,
                     customerId: customer.id,
                     status: "attended", // Default status, can be customized,
