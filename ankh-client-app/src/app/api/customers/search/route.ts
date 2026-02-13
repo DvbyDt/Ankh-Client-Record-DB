@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
               }
             },
             customerSymptoms: true, // Include symptoms from LessonParticipant
-            customerImprovements: true // Include improvements from LessonParticipant
+            customerImprovements: true, // Include improvements from LessonParticipant
+            customerFeedback: true
           },
           orderBy: [
             {

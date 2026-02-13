@@ -58,7 +58,8 @@
     "lessonDetails": "수업 세부정보",
     "instructor": "강사",
     "symptoms": "증상",
-    "improvements": "개선 사항"
+    "improvements": "개선 사항",
+    "customerFeedback": "고객 피드백/특이사항"
   },
   "AddRecord": {
     "title": "새 수업 기록 추가",
@@ -173,7 +174,7 @@
       "lessonContent": "수업 내용",
       "customerSymptoms": "고객 증상",
       "customerImprovements": "고객 개선 사항",
-      "courseCompletion": "과정 완료 상태"
+      "courseCompletion": "고객 피드백/특이사항"
     },
     "selectCSVFile": "CSV 파일 선택",
     "selected": "선택됨: {fileName}",

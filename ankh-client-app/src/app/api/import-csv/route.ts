@@ -14,7 +14,8 @@ const REQUIRED_HEADERS = [
   'lesson type',
   'customer symptoms',
   'customer improvements',
-  'lesson content'
+  'lesson content',
+  'course completion status'
 ]
 
 // Aliases to support different upload templates (lowercase keys)
@@ -45,7 +46,12 @@ const HEADER_ALIASES: Record<string, string> = {
   'lesson_content': 'lesson content',
   'lesson details': 'lesson content',
   'lesson_details': 'lesson content',
-  'owner_feedback': 'lesson content'
+  'owner_feedback': 'lesson content',
+  'course completion status': 'course completion status',
+  'course_completion_status': 'course completion status',
+  'customer feedback': 'course completion status',
+  'customer feedback/specifics': 'course completion status',
+  'customer feedback specifics': 'course completion status'
 }
 
 const normalizeHeader = (header: string) =>
@@ -196,6 +202,7 @@ export async function POST(request: NextRequest) {
         const customerSymptoms = row['customer symptoms']
         const customerImprovements = row['customer improvements']
         const lessonContent = row['lesson content']
+        const courseCompletionStatus = row['course completion status']
 
         if (!customerId || !customerName || !lessonId || !lessonDate || !instructorName) {
           rowErrors.push(`Row ${rowNumber}: Missing required fields`)
@@ -269,6 +276,7 @@ export async function POST(request: NextRequest) {
             update: {
               customerSymptoms: customerSymptoms || null,
               customerImprovements: customerImprovements || null,
+              customerFeedback: courseCompletionStatus || null,
               status: 'attended'
             },
             create: {
@@ -276,6 +284,7 @@ export async function POST(request: NextRequest) {
               lessonId: lesson.id,
               customerSymptoms: customerSymptoms || null,
               customerImprovements: customerImprovements || null,
+              customerFeedback: courseCompletionStatus || null,
               status: 'attended'
             }
           })

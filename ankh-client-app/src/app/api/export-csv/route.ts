@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // if (lessonParticipants.length === 0) {
     //   return NextResponse.json({
     //     message: 'No lesson records found',
-    //     csv: 'Customer ID,Customer Name,Initial Symptom,Lesson ID,Lesson Date,Instructor Name,Lesson Type,Lesson Content,Customer Symptoms,Customer Improvements,Course Completion Status\n'
+    //     csv: 'Customer ID,Customer Name,Initial Symptom,Lesson ID,Lesson Date,Instructor Name,Lesson Type,Lesson Content,Customer Symptoms,Customer Improvements,Customer Feedback/Specifics\n'
     //   })
     // }
 
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       'Lesson Content',
       'Customer Symptoms',
       'Customer Improvements',
-      'Course Completion Status'
+      'Customer Feedback/Specifics'
     ].join(',')
 
     // const csvRows = lessonParticipants.map(participant => [
