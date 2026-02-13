@@ -13,7 +13,6 @@ const REQUIRED_HEADERS = [
   'instructor name',
   'lesson type',
   'customer symptoms',
-  'customer improvements',
   'lesson content',
   'course completion status'
 ]
@@ -25,8 +24,8 @@ const HEADER_ALIASES: Record<string, string> = {
   'customer_name': 'customer name',
   'client_name': 'customer name',
   'initial symptom': 'initial symptom',
-  'client_condition_before_after': 'customer improvements',
-  'customer improvements': 'customer improvements',
+  'client_condition_before_after': 'course completion status',
+  'customer improvements': 'course completion status',
   'customer symptoms': 'customer symptoms',
   'client_notes': 'customer symptoms',
   'lesson id': 'lesson id',
@@ -275,16 +274,14 @@ export async function POST(request: NextRequest) {
             },
             update: {
               customerSymptoms: customerSymptoms || null,
-              customerImprovements: customerImprovements || null,
-              customerFeedback: courseCompletionStatus || null,
+              customerImprovements: courseCompletionStatus || customerImprovements || null,
               status: 'attended'
             },
             create: {
               customerId: customer.id,
               lessonId: lesson.id,
               customerSymptoms: customerSymptoms || null,
-              customerImprovements: customerImprovements || null,
-              customerFeedback: courseCompletionStatus || null,
+              customerImprovements: courseCompletionStatus || customerImprovements || null,
               status: 'attended'
             }
           })

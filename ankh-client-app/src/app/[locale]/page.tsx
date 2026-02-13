@@ -57,7 +57,6 @@ interface CustomerLessonParticipant {
   }
   customerSymptoms?: string
   customerImprovements?: string
-  customerFeedback?: string
 }
 
 interface LessonFormData {
@@ -1208,9 +1207,6 @@ export default function HomePage() {
                                 <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
                                   <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements || t('Common.na')}
                                 </div>
-                                <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
-                                  <span className="font-medium">{t('CustomerSearch.customerFeedback')}:</span> {participant.customerFeedback || t('Common.na')}
-                                </div>
                                 <div className="text-xs text-gray-500 mt-2">
                                   {participant.lesson.lessonType ? `${t('CustomerSearch.lessonType')}: ${participant.lesson.lessonType}` : ''}
                                   {participant.lesson.createdAt ? ` · ${t('CustomerSearch.lessonDate')}: ${new Date(participant.lesson.createdAt).toLocaleDateString()}` : ''}
@@ -1370,9 +1366,6 @@ export default function HomePage() {
                                             </div>
                                             <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
                                               <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
-                                            </div>
-                                            <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
-                                              <span className="font-medium">{t('CustomerSearch.customerFeedback')}:</span> {participant.customerFeedback || t('Common.na')}
                                             </div>
                                           </div>
                                         ))}

@@ -70,7 +70,7 @@
       "lessonContent": "Lesson Content",
       "customerSymptoms": "Customer Symptoms",
       "customerImprovements": "Customer Improvements",
-      "courseCompletion": "Customer Feedback/Specifics"
+      "courseCompletion": "Course Completion Status"
     },
     "selectCSVFile": "Select File",
     "selected": "Selected: {fileName}",
@@ -103,8 +103,7 @@
     "lessonDetails": "Lesson Details",
     "instructor": "Instructor",
     "symptoms": "Symptoms",
-    "improvements": "Improvements",
-    "customerFeedback": "Customer Feedback/Specifics"
+    "improvements": "Course Completion Status"
   },
   "AddRecord": {
     "title": "Add New Lesson Record",
