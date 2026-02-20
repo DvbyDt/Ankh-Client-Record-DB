@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
 
@@ -65,19 +64,28 @@ const canonicalHeader = (header: string) => {
   return HEADER_ALIASES[normalized] ?? normalized
 }
 
-const ensureLocation = async (
-  tx: Prisma.TransactionClient,
-  name?: string | null
-): Promise<string> => {
-  const targetName = name?.trim() || 'Default Location'
+const chunkArray = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
 
-  const location = await tx.location.upsert({
-    where: { name: targetName },
-    update: {},
-    create: { name: targetName }
-  })
+const hashString = (value: string) => {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
+  }
+  return hash.toString(36)
+}
 
-  return location.id
+const buildInstructorEmail = (name: string) =>
+  `${name.replace(/\s+/g, '')}@imported.local`
+
+const buildInstructorUsername = (name: string) => {
+  const compact = name.replace(/\s+/g, '') || 'instructor'
+  return `${compact}_${hashString(name)}`
 }
 
 // Parse dates from either ISO-like strings or Excel serial numbers
@@ -179,122 +187,230 @@ export async function POST(request: NextRequest) {
     let processedCount = 0
     let errorCount = 0
     const rowErrors: string[] = []
+    const validRows: Array<{
+      customerId: string
+      customerName: string
+      lessonId: string
+      lessonDate: string
+      instructorName: string
+      lessonType: string
+      locationName: string
+      customerSymptoms: string
+      customerImprovements: string
+      lessonContent: string
+      courseCompletionStatus: string
+    }> = []
 
     for (let i = 0; i < data.length; i++) {
-      try {
-        const rowNumber = i + 2 // +2 because CSV is 1-indexed and we have headers
+      const rowNumber = i + 2 // +2 because CSV is 1-indexed and we have headers
 
-        const rawRow = data[i] as Record<string, any>
-        const row: Record<string, string> = {}
-        Object.entries(rawRow).forEach(([key, value]) => {
-          const canonical = canonicalHeader(key)
-          row[canonical] = (value ?? '').toString().trim()
-        })
+      const rawRow = data[i] as Record<string, any>
+      const row: Record<string, string> = {}
+      Object.entries(rawRow).forEach(([key, value]) => {
+        const canonical = canonicalHeader(key)
+        row[canonical] = (value ?? '').toString().trim()
+      })
 
-        const customerId = row['customer id']
-        const customerName = row['customer name']
-        const lessonId = row['lesson id']
-        const lessonDate = row['lesson date']
-        const instructorName = row['instructor name']
-        const lessonType = row['lesson type']
-        const locationName = row['location name']
-        const customerSymptoms = row['customer symptoms']
-        const customerImprovements = row['customer improvements']
-        const lessonContent = row['lesson content']
-        const courseCompletionStatus = row['course completion status']
+      const customerId = row['customer id']
+      const customerName = row['customer name']
+      const lessonId = row['lesson id']
+      const lessonDate = row['lesson date']
+      const instructorName = row['instructor name']
+      const lessonType = row['lesson type']
+      const locationName = row['location name']
+      const customerSymptoms = row['customer symptoms']
+      const customerImprovements = row['customer improvements']
+      const lessonContent = row['lesson content']
+      const courseCompletionStatus = row['course completion status']
 
-        if (!customerId || !customerName || !lessonId || !lessonDate || !instructorName) {
-          rowErrors.push(`Row ${rowNumber}: Missing required fields`)
-          errorCount++
-          continue
-        }
-
-        const parsedDate = parseLessonDate(lessonDate)
-        if (!parsedDate) {
-          rowErrors.push(`Row ${rowNumber}: Invalid lesson date format`)
-          errorCount++
-          continue
-        }
-
-        await prisma.$transaction(async (tx) => {
-          const customer = await tx.customer.upsert({
-            where: { id: customerId },
-            update: {
-              firstName: customerName.split(' ')[0] || '',
-              lastName: customerName.split(' ').slice(1).join(' ') || '',
-              email: `${customerId}@imported.local`,
-            },
-            create: {
-              id: customerId,
-              firstName: customerName.split(' ')[0] || '',
-              lastName: customerName.split(' ').slice(1).join(' ') || '',
-              email: `${customerId}@imported.local`,
-            }
-          })
-
-          const instructor = await tx.user.upsert({
-            where: { email: `${instructorName.replace(/\s+/g, '')}@imported.local` },
-            update: {
-              firstName: instructorName.split(' ')[0] || '',
-              lastName: instructorName.split(' ').slice(1).join(' ') || '',
-            },
-            create: {
-              username: `${instructorName.replace(/\s+/g, '')}_${Date.now()}`,
-              password: 'imported_password_hash', // This should be properly hashed
-              role: 'INSTRUCTOR',
-              firstName: instructorName.split(' ')[0] || '',
-              lastName: instructorName.split(' ').slice(1).join(' ') || '',
-              email: `${instructorName.replace(/\s+/g, '')}@imported.local`,
-            }
-          })
-
-          const locationId = await ensureLocation(tx, locationName)
-
-          const lesson = await tx.lesson.upsert({
-            where: { id: lessonId },
-            update: {
-              lessonType: lessonType || 'Group',
-              instructorId: instructor.id,
-              locationId
-            },
-            create: {
-              id: lessonId,
-              lessonType: lessonType || 'Group',
-              instructorId: instructor.id,
-              locationId
-            }
-          })
-
-          await tx.lessonParticipant.upsert({
-            where: {
-              customerId_lessonId: {
-                customerId: customer.id,
-                lessonId: lesson.id
-              }
-            },
-            update: {
-              customerSymptoms: customerSymptoms || null,
-              customerImprovements: courseCompletionStatus || customerImprovements || null,
-              status: 'attended'
-            },
-            create: {
-              customerId: customer.id,
-              lessonId: lesson.id,
-              customerSymptoms: customerSymptoms || null,
-              customerImprovements: courseCompletionStatus || customerImprovements || null,
-              status: 'attended'
-            }
-          })
-        }, {
-          maxWait: 10000, // Wait up to 10 seconds to start transaction
-          timeout: 30000, // Transaction timeout of 30 seconds
-        })
-
-        processedCount++
-      } catch (rowError) {
-        rowErrors.push(`Row ${i + 2}: ${rowError instanceof Error ? rowError.message : 'Unknown error'}`)
+      if (!customerId || !customerName || !lessonId || !lessonDate || !instructorName) {
+        rowErrors.push(`Row ${rowNumber}: Missing required fields`)
         errorCount++
+        continue
       }
+
+      const parsedDate = parseLessonDate(lessonDate)
+      if (!parsedDate) {
+        rowErrors.push(`Row ${rowNumber}: Invalid lesson date format`)
+        errorCount++
+        continue
+      }
+
+      validRows.push({
+        customerId,
+        customerName,
+        lessonId,
+        lessonDate,
+        instructorName,
+        lessonType,
+        locationName,
+        customerSymptoms,
+        customerImprovements,
+        lessonContent,
+        courseCompletionStatus
+      })
+    }
+
+    if (validRows.length > 0) {
+      const batchSize = 50
+
+      const customers = new Map<string, { id: string; name: string }>()
+      const instructors = new Map<string, { email: string; name: string }>()
+      const locations = new Set<string>()
+      const lessons = new Map<string, {
+        id: string
+        instructorEmail: string
+        locationName: string
+        lessonType: string
+      }>()
+
+      validRows.forEach(row => {
+        customers.set(row.customerId, { id: row.customerId, name: row.customerName })
+
+        const instructorEmail = buildInstructorEmail(row.instructorName)
+        instructors.set(instructorEmail, { email: instructorEmail, name: row.instructorName })
+
+        const normalizedLocation = row.locationName?.trim() || 'Default Location'
+        locations.add(normalizedLocation)
+
+        if (!lessons.has(row.lessonId)) {
+          lessons.set(row.lessonId, {
+            id: row.lessonId,
+            instructorEmail,
+            locationName: normalizedLocation,
+            lessonType: row.lessonType || 'Group'
+          })
+        }
+      })
+
+      const locationNames = Array.from(locations)
+      for (const chunk of chunkArray(locationNames, batchSize)) {
+        await prisma.$transaction(
+          chunk.map(name =>
+            prisma.location.upsert({
+              where: { name },
+              update: {},
+              create: { name }
+            })
+          )
+        )
+      }
+
+      const locationRecords = await prisma.location.findMany({
+        where: { name: { in: locationNames } }
+      })
+      const locationIdByName = new Map(locationRecords.map(loc => [loc.name, loc.id]))
+
+      const instructorRecords = Array.from(instructors.values())
+      for (const chunk of chunkArray(instructorRecords, batchSize)) {
+        await prisma.$transaction(
+          chunk.map(instructor => {
+            const [firstName, ...rest] = instructor.name.split(' ')
+            return prisma.user.upsert({
+              where: { email: instructor.email },
+              update: {
+                firstName: firstName || '',
+                lastName: rest.join(' ') || ''
+              },
+              create: {
+                username: buildInstructorUsername(instructor.name),
+                password: 'imported_password_hash',
+                role: 'INSTRUCTOR',
+                firstName: firstName || '',
+                lastName: rest.join(' ') || '',
+                email: instructor.email
+              }
+            })
+          })
+        )
+      }
+
+      const instructorEmails = instructorRecords.map(record => record.email)
+      const instructorUsers = await prisma.user.findMany({
+        where: { email: { in: instructorEmails } }
+      })
+      const instructorIdByEmail = new Map(instructorUsers.map(user => [user.email, user.id]))
+
+      const customerRecords = Array.from(customers.values())
+      for (const chunk of chunkArray(customerRecords, batchSize)) {
+        await prisma.$transaction(
+          chunk.map(customer => {
+            const [firstName, ...rest] = customer.name.split(' ')
+            return prisma.customer.upsert({
+              where: { id: customer.id },
+              update: {
+                firstName: firstName || '',
+                lastName: rest.join(' ') || '',
+                email: `${customer.id}@imported.local`
+              },
+              create: {
+                id: customer.id,
+                firstName: firstName || '',
+                lastName: rest.join(' ') || '',
+                email: `${customer.id}@imported.local`
+              }
+            })
+          })
+        )
+      }
+
+      const lessonRecords = Array.from(lessons.values())
+      for (const chunk of chunkArray(lessonRecords, batchSize)) {
+        await prisma.$transaction(
+          chunk.map(lesson => {
+            const instructorId = instructorIdByEmail.get(lesson.instructorEmail)
+            const locationId = locationIdByName.get(lesson.locationName)
+
+            if (!instructorId || !locationId) {
+              throw new Error('Missing instructor or location during lesson import')
+            }
+
+            return prisma.lesson.upsert({
+              where: { id: lesson.id },
+              update: {
+                lessonType: lesson.lessonType || 'Group',
+                instructorId,
+                locationId
+              },
+              create: {
+                id: lesson.id,
+                lessonType: lesson.lessonType || 'Group',
+                instructorId,
+                locationId
+              }
+            })
+          })
+        )
+      }
+
+      for (const chunk of chunkArray(validRows, batchSize)) {
+        await prisma.$transaction(
+          chunk.map(row =>
+            prisma.lessonParticipant.upsert({
+              where: {
+                customerId_lessonId: {
+                  customerId: row.customerId,
+                  lessonId: row.lessonId
+                }
+              },
+              update: {
+                customerSymptoms: row.customerSymptoms || null,
+                customerImprovements: row.courseCompletionStatus || row.customerImprovements || null,
+                status: 'attended'
+              },
+              create: {
+                customerId: row.customerId,
+                lessonId: row.lessonId,
+                customerSymptoms: row.customerSymptoms || null,
+                customerImprovements: row.courseCompletionStatus || row.customerImprovements || null,
+                status: 'attended'
+              }
+            })
+          )
+        )
+      }
+
+      processedCount = validRows.length
     }
 
     if (errorCount > 0) {
