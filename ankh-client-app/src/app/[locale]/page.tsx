@@ -1133,14 +1133,14 @@ export default function HomePage() {
             {/* Customer Info Modal */}
             {selectedCustomerInfo && (
               <Dialog open={!!selectedCustomerInfo} onOpenChange={(open) => !open && setSelectedCustomerInfo(null)}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
                   <DialogHeader>
                     <DialogTitle>{selectedCustomerInfo.firstName} {selectedCustomerInfo.lastName}</DialogTitle>
                     <DialogDescription>
                       Customer Information
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4">
+                  <div className="space-y-4 overflow-y-auto flex-1 pr-4">
                     <div>
                       <Label className="text-xs text-gray-600">Email</Label>
                       <p className="font-medium break-all">{selectedCustomerInfo.email}</p>
