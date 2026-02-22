@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Loader2, ArrowLeft, UserPlus, Users } from 'lucide-react'
+import { Search, Loader2, ArrowLeft, UserPlus, Users, Edit, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -76,6 +76,12 @@ export default function AddRecordPage() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  
+  // Edit mode state
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
+  const [editFormData, setEditFormData] = useState<{firstName: string; lastName: string; email: string; phone: string}>({firstName: '', lastName: '', email: '', phone: ''})
+  const [isEditingSaving, setIsEditingSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
   
   // Form data
   const [instructors, setInstructors] = useState<User[]>([])
@@ -183,6 +189,72 @@ export default function AddRecordPage() {
       }]
     })
     setStep('form')
+  }
+
+  const handleEditCustomer = (customer: Customer) => {
+    setEditingCustomerId(customer.id)
+    setEditFormData({
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      email: customer.email,
+      phone: customer.phone || ''
+    })
+    setEditError(null)
+  }
+
+  const handleSaveCustomerEdit = async () => {
+    if (!editingCustomerId) return
+
+    if (!editFormData.firstName.trim() || !editFormData.lastName.trim() || !editFormData.email.trim()) {
+      setEditError('First name, last name, and email are required')
+      return
+    }
+
+    setIsEditingSaving(true)
+    setEditError(null)
+    const token = Cookies.get('jwt-token')
+
+    try {
+      const response = await fetch(`/api/customers/${editingCustomerId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          firstName: editFormData.firstName,
+          lastName: editFormData.lastName,
+          email: editFormData.email,
+          phone: editFormData.phone || null
+        })
+      })
+
+      if (response.ok) {
+        // Update the search results
+        setSearchResults(prev =>
+          prev.map(customer =>
+            customer.id === editingCustomerId
+              ? { ...customer, ...editFormData }
+              : customer
+          )
+        )
+        setEditingCustomerId(null)
+      } else {
+        const error = await response.json()
+        setEditError(error.error || 'Failed to update customer')
+      }
+    } catch (error) {
+      console.error('Error updating customer:', error)
+      setEditError('An error occurred while updating the customer')
+    } finally {
+      setIsEditingSaving(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingCustomerId(null)
+    setEditFormData({firstName: '', lastName: '', email: '', phone: ''})
+    setEditError(null)
   }
 
   const addCustomerRow = () => {
@@ -363,23 +435,109 @@ export default function AddRecordPage() {
                 <div className="space-y-2">
                   <h3 className="font-medium text-sm text-gray-700">{t('AddRecord.selectCustomer')}:</h3>
                   {searchResults.map((customer) => (
-                    <Card
-                      key={customer.id}
-                      className="cursor-pointer hover:border-blue-500 transition-all"
-                      onClick={() => handleSelectExistingCustomer(customer)}
-                    >
-                      <CardContent className="py-3">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">{customer.firstName} {customer.lastName}</p>
-                            <p className="text-sm text-gray-600">{customer.email}</p>
+                    <div key={customer.id} className="space-y-2">
+                      <Card
+                        className="hover:border-blue-500 transition-all"
+                      >
+                        <CardContent className="py-3">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1 cursor-pointer" onClick={() => handleSelectExistingCustomer(customer)}>
+                              <p className="font-medium">{customer.firstName} {customer.lastName}</p>
+                              <p className="text-sm text-gray-600">{customer.email}</p>
+                              {customer.phone && (
+                                <p className="text-sm text-gray-500">{customer.phone}</p>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEditCustomer(customer)}
+                              className="ml-2"
+                            >
+                              <Edit className="h-4 w-4 text-blue-600" />
+                            </Button>
                           </div>
-                          {customer.phone && (
-                            <p className="text-sm text-gray-500">{customer.phone}</p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
+
+                      {/* Edit Modal */}
+                      {editingCustomerId === customer.id && (
+                        <Card className="border-blue-300 bg-blue-50">
+                          <CardContent className="pt-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label>{t('AddRecord.firstName')} *</Label>
+                                <Input
+                                  value={editFormData.firstName}
+                                  onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
+                                  placeholder="First name"
+                                />
+                              </div>
+                              <div>
+                                <Label>{t('AddRecord.lastName')} *</Label>
+                                <Input
+                                  value={editFormData.lastName}
+                                  onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
+                                  placeholder="Last name"
+                                />
+                              </div>
+                              <div>
+                                <Label>{t('CustomerSearch.email')} *</Label>
+                                <Input
+                                  type="email"
+                                  value={editFormData.email}
+                                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                                  placeholder="Email"
+                                />
+                              </div>
+                              <div>
+                                <Label>{t('Dialogs.phone')}</Label>
+                                <Input
+                                  value={editFormData.phone}
+                                  onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                                  placeholder="Phone"
+                                />
+                              </div>
+                            </div>
+
+                            {editError && (
+                              <div className="p-2 bg-red-100 border border-red-300 rounded text-sm text-red-700">
+                                {editError}
+                              </div>
+                            )}
+
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelEdit}
+                                disabled={isEditingSaving}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                {t('Common.cancel')}
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={handleSaveCustomerEdit}
+                                disabled={isEditingSaving}
+                              >
+                                {isEditingSaving ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    {t('Common.saving')}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-4 w-4 mr-1" />
+                                    {t('Common.save')}
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

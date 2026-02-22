@@ -23,6 +23,74 @@ const requireManager = (request: NextRequest) => {
   }
 }
 
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ userId: string }> }
+) {
+  try {
+    const auth = requireManager(request)
+    if ('error' in auth) return auth.error
+
+    const { userId } = await params
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const body = await request.json()
+    const { firstName, lastName, email, role } = body
+
+    if (!firstName || !lastName || !email) {
+      return NextResponse.json(
+        { error: 'First name, last name, and email are required' },
+        { status: 400 }
+      )
+    }
+
+    // Check if user exists
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    })
+
+    if (!userExists) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName,
+        lastName,
+        email,
+        role: role || userExists.role
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        createdAt: true
+      }
+    })
+
+    return NextResponse.json({ user: updatedUser })
+  } catch (error) {
+    console.error('Error updating user:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
