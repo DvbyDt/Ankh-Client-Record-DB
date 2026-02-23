@@ -56,9 +56,10 @@
     "lessonType": "수업 유형",
     "lessonDate": "수업 날짜",
     "lessonDetails": "수업 세부정보",
+    "lessonContent": "수업 내용",
     "instructor": "강사",
     "symptoms": "증상",
-    "improvements": "과정 완료 상태"
+    "improvements": "고객 피드백"
   },
   "AddRecord": {
     "title": "새 수업 기록 추가",

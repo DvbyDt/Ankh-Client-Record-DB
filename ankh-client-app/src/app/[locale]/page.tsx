@@ -42,6 +42,7 @@ interface Customer {
   email: string
   phone?: string
   createdAt?: string
+  deletedAt?: string | null
   lessonParticipants?: CustomerLessonParticipant[]
 }
 
@@ -49,6 +50,7 @@ interface CustomerLessonParticipant {
   lesson: {
     id: string
     lessonType?: string
+    lessonContent?: string
     createdAt?: string
     instructor: {
       firstName: string
@@ -180,6 +182,10 @@ export default function HomePage() {
   const [selectedCustomerInfo, setSelectedCustomerInfo] = useState<Customer | null>(null);
   const [isLoadingCustomerDetails, setIsLoadingCustomerDetails] = useState(false);
   const [customerCount, setCustomerCount] = useState<number | null>(null);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [editCustomerForm, setEditCustomerForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [isSavingCustomerEdit, setIsSavingCustomerEdit] = useState(false);
+  const [editCustomerError, setEditCustomerError] = useState<string | null>(null);
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -217,6 +223,9 @@ export default function HomePage() {
             setToastMessage('Customer deleted successfully!');
             // Remove from search results
             setSearchResults(searchResults.filter(r => r.id !== customerId));
+            setAllCustomers(prev => prev.filter(customer => customer.id !== customerId))
+            setSelectedCustomerInfo(prev => (prev?.id === customerId ? null : prev))
+            fetchCustomerCount()
           } else {
             const errorData = await response.json();
             setToastMessage(errorData.error || 'Failed to delete customer.');
@@ -460,6 +469,65 @@ export default function HomePage() {
       setIsLoadingCustomerDetails(false);
     }
   };
+
+  const handleEditCustomer = (customer: Customer) => {
+    setEditingCustomer(customer)
+    setEditCustomerForm({
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      email: customer.email,
+      phone: customer.phone || ''
+    })
+    setEditCustomerError(null)
+  }
+
+  const handleCancelCustomerEdit = () => {
+    setEditingCustomer(null)
+    setEditCustomerForm({ firstName: '', lastName: '', email: '', phone: '' })
+    setEditCustomerError(null)
+  }
+
+  const handleSaveCustomerEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingCustomer) return
+
+    const token = Cookies.get('jwt-token')
+    if (!token) {
+      setEditCustomerError('Authentication required')
+      return
+    }
+
+    setIsSavingCustomerEdit(true)
+    setEditCustomerError(null)
+
+    try {
+      const response = await fetch(`/api/customers/${editingCustomer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(editCustomerForm)
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const updatedCustomer = data.customer as Customer
+        setAllCustomers(prev => prev.map(c => (c.id === updatedCustomer.id ? { ...c, ...updatedCustomer } : c)))
+        setSearchResults(prev => prev.map(c => (c.id === updatedCustomer.id ? { ...c, ...updatedCustomer } : c)))
+        setSelectedCustomerInfo(prev => (prev?.id === updatedCustomer.id ? { ...prev, ...updatedCustomer } : prev))
+        setEditingCustomer(null)
+        setToastMessage('Customer updated successfully!')
+      } else {
+        const errorData = await response.json()
+        setEditCustomerError(errorData.error || 'Failed to update customer')
+      }
+    } catch (error) {
+      setEditCustomerError('An unexpected error occurred while updating customer')
+    } finally {
+      setIsSavingCustomerEdit(false)
+    }
+  }
 
   // Handle user deletion
   const handleDeleteUser = async (userId: string, userName: string) => {
@@ -1053,16 +1121,17 @@ export default function HomePage() {
                     <div className="overflow-x-auto">
                       <Table className="table-fixed w-full">
                         <TableHeader>
-                          <TableHead className="w-[28%] px-4 py-3 font-semibold">Name</TableHead>
-                          <TableHead className="w-[28%] px-4 py-3 font-semibold">Email</TableHead>
-                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Phone</TableHead>
-                          <TableHead className="w-[24%] px-4 py-3 font-semibold">Created At</TableHead>
+                          <TableHead className="w-[25%] px-4 py-3 font-semibold">Name</TableHead>
+                          <TableHead className="w-[25%] px-4 py-3 font-semibold">Email</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Phone</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Created At</TableHead>
+                          <TableHead className="w-[20%] px-4 py-3 font-semibold text-center">Action</TableHead>
                         </TableHeader>
                         <TableBody>
                           {allCustomers.length > 0 ? (
                             allCustomers.map((customer) => (
                               <TableRow key={customer.id}>
-                                <TableCell className="w-[28%] px-4 py-3">
+                                <TableCell className="w-[25%] px-4 py-3">
                                   <button
                                     onClick={() => handleViewCustomerDetails(customer.id)}
                                     className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
@@ -1070,16 +1139,35 @@ export default function HomePage() {
                                     {`${customer.firstName} ${customer.lastName}`}
                                   </button>
                                 </TableCell>
-                                <TableCell className="w-[28%] px-4 py-3 break-all">{customer.email}</TableCell>
-                                <TableCell className="w-[20%] px-4 py-3">{customer.phone || 'N/A'}</TableCell>
-                                <TableCell className="w-[24%] px-4 py-3">
+                                <TableCell className="w-[25%] px-4 py-3 break-all">{customer.email}</TableCell>
+                                <TableCell className="w-[15%] px-4 py-3">{customer.phone || 'N/A'}</TableCell>
+                                <TableCell className="w-[15%] px-4 py-3">
                                   {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : 'N/A'}
+                                </TableCell>
+                                <TableCell className="w-[20%] px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEditCustomer(customer)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => handleDeleteCustomer(customer.id, `${customer.firstName} ${customer.lastName}`)}
+                                      disabled={isDeletingCustomer}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             ))
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
                                 No customers found
                               </TableCell>
                             </TableRow>
@@ -1205,6 +1293,9 @@ export default function HomePage() {
                                   <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms || t('Common.na')}
                                 </div>
                                 <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
+                                  <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent || t('Common.na')}
+                                </div>
+                                <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
                                   <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements || t('Common.na')}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-2">
@@ -1220,6 +1311,78 @@ export default function HomePage() {
                       )}
                     </div>
                   </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Edit Customer Modal */}
+            {editingCustomer && (
+              <Dialog open={!!editingCustomer} onOpenChange={(open) => !open && handleCancelCustomerEdit()}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Edit Customer</DialogTitle>
+                    <DialogDescription>
+                      Update customer details.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSaveCustomerEdit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="editFirstName">First Name</Label>
+                        <Input
+                          id="editFirstName"
+                          value={editCustomerForm.firstName}
+                          onChange={(e) => setEditCustomerForm({ ...editCustomerForm, firstName: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="editLastName">Last Name</Label>
+                        <Input
+                          id="editLastName"
+                          value={editCustomerForm.lastName}
+                          onChange={(e) => setEditCustomerForm({ ...editCustomerForm, lastName: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="editEmail">Email</Label>
+                      <Input
+                        id="editEmail"
+                        type="email"
+                        value={editCustomerForm.email}
+                        onChange={(e) => setEditCustomerForm({ ...editCustomerForm, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editPhone">Phone</Label>
+                      <Input
+                        id="editPhone"
+                        value={editCustomerForm.phone}
+                        onChange={(e) => setEditCustomerForm({ ...editCustomerForm, phone: e.target.value })}
+                      />
+                    </div>
+                    {editCustomerError && (
+                      <div className="text-sm text-red-600">{editCustomerError}</div>
+                    )}
+                    <div className="flex justify-end gap-3">
+                      <Button type="button" variant="outline" onClick={handleCancelCustomerEdit}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isSavingCustomerEdit}>
+                        {isSavingCustomerEdit ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save'
+                        )}
+                      </Button>
+                    </div>
+                  </form>
                 </DialogContent>
               </Dialog>
             )}
@@ -1365,7 +1528,14 @@ export default function HomePage() {
                                               <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
                                             </div>
                                             <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
-                                              <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
+                                              <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent || t('Common.na')}
+                                            </div>
+                                            <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
+                                              <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements || t('Common.na')}
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-2">
+                                              {participant.lesson.lessonType ? `${t('CustomerSearch.lessonType')}: ${participant.lesson.lessonType}` : ''}
+                                              {participant.lesson.createdAt ? ` · ${t('CustomerSearch.lessonDate')}: ${new Date(participant.lesson.createdAt).toLocaleDateString()}` : ''}
                                             </div>
                                           </div>
                                         ))}

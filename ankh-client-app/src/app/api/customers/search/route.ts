@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
           { firstName: { contains: name, mode: 'insensitive' } },
           { lastName: { contains: name, mode: 'insensitive' } },
           { email: { contains: name, mode: 'insensitive' } }
-        ]
+        ],
+        deletedAt: null
       },
       select: {
         id: true,
@@ -31,11 +32,15 @@ export async function GET(request: NextRequest) {
         email: true,
         phone: true,
         createdAt: true,
+        deletedAt: true,
         lessonParticipants: {
           select: {
             lesson: {
               select: {
                 id: true,
+                lessonType: true,
+                lessonContent: true,
+                createdAt: true,
                 instructor: {
                   select: {
                     firstName: true,

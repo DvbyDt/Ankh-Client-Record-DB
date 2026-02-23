@@ -192,6 +192,7 @@ export async function POST(request: NextRequest) {
       customerName: string
       lessonId: string
       lessonDate: string
+      parsedLessonDate: Date
       instructorName: string
       lessonType: string
       locationName: string
@@ -241,6 +242,7 @@ export async function POST(request: NextRequest) {
         customerName,
         lessonId,
         lessonDate,
+        parsedLessonDate: parsedDate,
         instructorName,
         lessonType,
         locationName,
@@ -262,6 +264,8 @@ export async function POST(request: NextRequest) {
         instructorEmail: string
         locationName: string
         lessonType: string
+        lessonContent: string
+        lessonDate: Date
       }>()
 
       validRows.forEach(row => {
@@ -278,8 +282,20 @@ export async function POST(request: NextRequest) {
             id: row.lessonId,
             instructorEmail,
             locationName: normalizedLocation,
-            lessonType: row.lessonType || 'Group'
+            lessonType: row.lessonType || 'Group',
+            lessonContent: row.lessonContent || '',
+            lessonDate: row.parsedLessonDate
           })
+        } else {
+          const existingLesson = lessons.get(row.lessonId)
+          if (existingLesson) {
+            if (row.parsedLessonDate < existingLesson.lessonDate) {
+              existingLesson.lessonDate = row.parsedLessonDate
+            }
+            if (!existingLesson.lessonContent && row.lessonContent) {
+              existingLesson.lessonContent = row.lessonContent
+            }
+          }
         }
       })
 
@@ -370,13 +386,17 @@ export async function POST(request: NextRequest) {
               update: {
                 lessonType: lesson.lessonType || 'Group',
                 instructorId,
-                locationId
+                locationId,
+                lessonContent: lesson.lessonContent || null,
+                createdAt: lesson.lessonDate
               },
               create: {
                 id: lesson.id,
                 lessonType: lesson.lessonType || 'Group',
                 instructorId,
-                locationId
+                locationId,
+                lessonContent: lesson.lessonContent || null,
+                createdAt: lesson.lessonDate
               }
             })
           })

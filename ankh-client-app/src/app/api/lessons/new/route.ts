@@ -8,6 +8,8 @@ export async function POST(request: NextRequest) {
 
     const { 
         lessonType, 
+        lessonDate,
+        lessonContent,
         instructorId, 
         location, 
         customers 
@@ -22,9 +24,16 @@ export async function POST(request: NextRequest) {
 
     try {
         // Create the lesson
-        const newLesson = await prisma.lesson.create({
+                const parsedLessonDate = lessonDate ? new Date(lessonDate) : null
+                const lessonCreatedAt = parsedLessonDate && !Number.isNaN(parsedLessonDate.getTime())
+                    ? parsedLessonDate
+                    : undefined
+
+                const newLesson = await prisma.lesson.create({
             data: {
                 lessonType: lessonType,
+                                lessonContent: lessonContent || null,
+                                ...(lessonCreatedAt ? { createdAt: lessonCreatedAt } : {}),
                 instructor: {
                     connect: { id: instructorId } 
                 },

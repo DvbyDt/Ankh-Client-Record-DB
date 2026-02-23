@@ -8,7 +8,9 @@ export async function GET(request: NextRequest) {
     const countOnly = searchParams.get('countOnly') === 'true'
 
     if (countOnly) {
-      const count = await prisma.customer.count()
+      const count = await prisma.customer.count({
+        where: { deletedAt: null }
+      })
       return NextResponse.json({ count })
     }
 
@@ -19,16 +21,18 @@ export async function GET(request: NextRequest) {
               { firstName: { contains: search, mode: 'insensitive' } },
               { lastName: { contains: search, mode: 'insensitive' } },
               { email: { contains: search, mode: 'insensitive' } }
-            ]
+            ],
+            deletedAt: null
           }
-        : {},
+        : { deletedAt: null },
       select: {
         id: true,
         firstName: true,
         lastName: true,
         email: true,
         phone: true,
-        createdAt: true
+        createdAt: true,
+        deletedAt: true
       },
       orderBy: {
         createdAt: 'desc'
