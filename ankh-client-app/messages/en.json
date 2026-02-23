@@ -101,9 +101,10 @@
     "lessonType": "Lesson Type",
     "lessonDate": "Lesson Date",
     "lessonDetails": "Lesson Details",
+    "lessonContent": "Lesson Content",
     "instructor": "Instructor",
     "symptoms": "Symptoms",
-    "improvements": "Course Completion Status"
+    "improvements": "Customer Feedback"
   },
   "AddRecord": {
     "title": "Add New Lesson Record",

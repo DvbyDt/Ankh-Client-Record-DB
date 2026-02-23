@@ -57,6 +57,7 @@ model Customer {
   phone     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   // Many-to-many relationship with lessons
   lessonParticipants LessonParticipant[]
@@ -67,6 +68,7 @@ model Customer {
 model Lesson {
   id                    String   @id @default(cuid())
   lessonType            String   // 'Group' or 'Individual'
+  lessonContent         String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

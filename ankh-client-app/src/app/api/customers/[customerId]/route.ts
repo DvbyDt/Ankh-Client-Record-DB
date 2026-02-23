@@ -41,7 +41,7 @@ export async function GET(
     }
 
     const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { id: customerId, deletedAt: null },
       select: {
         id: true,
         firstName: true,
@@ -49,6 +49,7 @@ export async function GET(
         email: true,
         phone: true,
         createdAt: true,
+        deletedAt: true,
         lessonParticipants: {
           select: {
             customerSymptoms: true,
@@ -57,6 +58,7 @@ export async function GET(
               select: {
                 id: true,
                 lessonType: true,
+                lessonContent: true,
                 createdAt: true,
                 instructor: {
                   select: {
@@ -122,7 +124,7 @@ export async function PUT(
 
     // Check if customer exists
     const customerExists = await prisma.customer.findUnique({
-      where: { id: customerId }
+      where: { id: customerId, deletedAt: null }
     })
 
     if (!customerExists) {
@@ -147,7 +149,8 @@ export async function PUT(
         lastName: true,
         email: true,
         phone: true,
-        createdAt: true
+        createdAt: true,
+        deletedAt: true
       }
     })
 
@@ -178,12 +181,26 @@ export async function DELETE(
       );
     }
 
-    // Perform your deletion logic here
+    const customerExists = await prisma.customer.findUnique({
+      where: { id: customerId, deletedAt: null }
+    })
+
+    if (!customerExists) {
+      return NextResponse.json(
+        { error: 'Customer not found' },
+        { status: 404 }
+      )
+    }
+
+    await prisma.customer.update({
+      where: { id: customerId },
+      data: { deletedAt: new Date() }
+    })
 
     return NextResponse.json(
-      { message: 'Operation completed successfully' },
+      { message: 'Customer deleted successfully' },
       { status: 200 }
-    );
+    )
   } catch (error) {
     console.error('Error:', error);
 
