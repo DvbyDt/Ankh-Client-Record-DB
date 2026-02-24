@@ -167,6 +167,8 @@ export default function HomePage() {
 
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
+  const [expandedSearchResultId, setExpandedSearchResultId] = useState<string | null>(null);
+  const [expandedSearchLessonId, setExpandedSearchLessonId] = useState<string | null>(null);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
 
@@ -1527,12 +1529,12 @@ export default function HomePage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => toggleExpandCustomer(result.id)}
+                              onClick={() => setExpandedSearchResultId(expandedSearchResultId === result.id ? null : result.id)}
                             >
-                              {expandedCustomerId === result.id ? t('Common.close') : t('Common.view')}
+                              {expandedSearchResultId === result.id ? t('Common.close') : t('Common.view')}
                             </Button>
 
-                            {expandedCustomerId === result.id && (
+                            {expandedSearchResultId === result.id && (
                               <div className="pt-2 space-y-4">
                                 {searchType === 'customer' && (
                                   <>
@@ -1576,13 +1578,13 @@ export default function HomePage() {
                                               <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => setExpandedLessonId(expandedLessonId === participant.lesson.id ? null : participant.lesson.id)}
+                                                onClick={() => setExpandedSearchLessonId(expandedSearchLessonId === participant.lesson.id ? null : participant.lesson.id)}
                                                 className="text-xs"
                                               >
-                                                {expandedLessonId === participant.lesson.id ? 'Less' : 'More'}
+                                                {expandedSearchLessonId === participant.lesson.id ? 'Less' : 'More'}
                                               </Button>
                                             </div>
-                                            {expandedLessonId === participant.lesson.id && (
+                                            {expandedSearchLessonId === participant.lesson.id && (
                                               <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
                                                 {participant.lesson.lessonContent && (
                                                   <div className="text-sm text-gray-700">
