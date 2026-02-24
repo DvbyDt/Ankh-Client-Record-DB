@@ -1108,7 +1108,7 @@ export default function HomePage() {
               </Card>
             )}
 
-            {/* All Customers Table */}
+            {/* All Customers List with Expandable Details */}
             {currentUser?.role === 'MANAGER' && showAllCustomersDialog && (
               <Card className="mb-8">
                 <CardHeader>
@@ -1121,78 +1121,105 @@ export default function HomePage() {
                       <Loader2 className="h-8 w-8 animate-spin" />
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table className="w-full border-collapse">
-                        <TableHeader>
-                          <TableRow className="bg-gray-100">
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[100px]">Customer ID</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Customer Name</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[150px]">Initial Symptom</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[100px]">Lesson ID</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Lesson Date</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Instructor Name</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Lesson Type</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[180px]">Lesson Content</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[150px]">Customer Symptoms</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[150px]">Customer Improvements</TableHead>
-                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[140px]">Course Completion Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {allCustomers.length > 0 ? (
-                            allCustomers.flatMap((customer) =>
-                              customer.lessonParticipants && customer.lessonParticipants.length > 0
-                                ? customer.lessonParticipants.map((participant, index) => {
-                                    // Get the initial symptom from the first (earliest) lesson
-                                    const initialSymptom = customer.lessonParticipants && customer.lessonParticipants.length > 0
-                                      ? customer.lessonParticipants[customer.lessonParticipants.length - 1]?.customerSymptoms || 'N/A'
-                                      : 'N/A'
-                                    return (
-                                      <TableRow key={`${customer.id}-${participant.id}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                        <TableCell className="px-4 py-3 text-sm">{customer.id}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm font-medium">{`${customer.firstName} ${customer.lastName}`}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">{initialSymptom}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">{participant.lesson.id}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">
-                                          {participant.lesson.createdAt ? new Date(participant.lesson.createdAt).toLocaleDateString() : 'N/A'}
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">{`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">{participant.lesson.lessonType || 'N/A'}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">{participant.lesson.lessonContent || 'N/A'}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">{participant.customerSymptoms || 'N/A'}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">{participant.customerImprovements || 'N/A'}</TableCell>
-                                        <TableCell className="px-4 py-3 text-sm">
-                                          <span className={`px-2 py-1 rounded text-xs ${
-                                            participant.status === 'attended' ? 'bg-green-100 text-green-700' : 
-                                            participant.status === 'absent' ? 'bg-red-100 text-red-700' :
-                                            participant.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
-                                            'bg-blue-100 text-blue-700'
-                                          }`}>
-                                            {participant.status || 'N/A'}
-                                          </span>
-                                        </TableCell>
-                                      </TableRow>
-                                    )
-                                  })
-                                : (
-                                    <TableRow key={customer.id} className="bg-gray-50">
-                                      <TableCell className="px-4 py-3 text-sm">{customer.id}</TableCell>
-                                      <TableCell className="px-4 py-3 text-sm font-medium">{`${customer.firstName} ${customer.lastName}`}</TableCell>
-                                      <TableCell colSpan={9} className="px-4 py-3 text-sm text-gray-500">
-                                        No lessons assigned
-                                      </TableCell>
-                                    </TableRow>
-                                  )
-                            )
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={11} className="text-center text-gray-500 py-8">
-                                No customers found
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
+                    <div className="space-y-4">
+                      {allCustomers.length > 0 ? (
+                        allCustomers.map((customer) => {
+                          const initialSymptom = customer.lessonParticipants && customer.lessonParticipants.length > 0
+                            ? customer.lessonParticipants[customer.lessonParticipants.length - 1]?.customerSymptoms || 'N/A'
+                            : 'N/A'
+                          const isExpanded = expandedCustomerId === customer.id
+                          
+                          return (
+                            <div key={customer.id} className="border rounded-lg p-4 bg-white">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-4 mb-2">
+                                    <span className="font-semibold text-lg">{`${customer.firstName} ${customer.lastName}`}</span>
+                                    <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">ID: {customer.id}</span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">Email: {customer.email}</p>
+                                  {customer.phone && <p className="text-sm text-gray-600">Phone: {customer.phone}</p>}
+                                  <p className="text-sm text-gray-700 mt-2"><strong>Initial Symptom:</strong> {initialSymptom}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => toggleExpandCustomer(customer.id)}
+                                  >
+                                    {isExpanded ? 'Hide Lessons' : 'Show Lessons'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditCustomer(customer)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteCustomer(customer.id, `${customer.firstName} ${customer.lastName}`)}
+                                    disabled={isDeletingCustomer}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                              
+                              {/* Expandable Lesson Details */}
+                              {isExpanded && (
+                                <div className="mt-4 pl-4 border-l-4 border-blue-200">
+                                  {customer.lessonParticipants && customer.lessonParticipants.length > 0 ? (
+                                    <div className="space-y-3">
+                                      {customer.lessonParticipants.map((participant, index) => (
+                                        <div key={`${customer.id}-${participant.id}`} className="bg-gray-50 p-3 rounded">
+                                          <div className="flex justify-between items-start">
+                                            <div className="flex-1 text-sm space-y-1">
+                                              <p><strong>Lesson ID:</strong> {participant.lesson.id}</p>
+                                              <p><strong>Lesson Date:</strong> {participant.lesson.createdAt ? new Date(participant.lesson.createdAt).toLocaleDateString() : 'N/A'}</p>
+                                              <p><strong>Instructor:</strong> {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}</p>
+                                              <p><strong>Lesson Type:</strong> {participant.lesson.lessonType || 'N/A'}</p>
+                                              <p><strong>Lesson Content:</strong> {participant.lesson.lessonContent || 'N/A'}</p>
+                                              <p><strong>Customer Symptoms:</strong> {participant.customerSymptoms || 'N/A'}</p>
+                                              <p><strong>Customer Improvements:</strong> {participant.customerImprovements || 'N/A'}</p>
+                                              <p><strong>Course Completion Status:</strong> 
+                                                <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                                                  participant.status === 'attended' ? 'bg-green-100 text-green-700' : 
+                                                  participant.status === 'absent' ? 'bg-red-100 text-red-700' :
+                                                  participant.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
+                                                  'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                  {participant.status || 'N/A'}
+                                                </span>
+                                              </p>
+                                            </div>
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                              onClick={() => handleDeleteLessonParticipant(customer.id, participant.lesson.id, `${customer.firstName} ${customer.lastName}`)}
+                                              disabled={isDeletingLesson}
+                                              className="ml-2"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-gray-500">No lessons assigned</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="text-center text-gray-500 py-8">
+                          No customers found
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
