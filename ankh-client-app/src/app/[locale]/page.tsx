@@ -1455,8 +1455,8 @@ export default function HomePage() {
                                 </CardTitle>
                                 <div className="mt-2 space-y-1">
                                   <CardDescription className="break-all text-sm">{result.email}</CardDescription>
-                                  {searchType === 'customer' && result.phone && (
-                                    <CardDescription className="text-sm">{result.phone}</CardDescription>
+                                  {searchType === 'customer' && (
+                                    <CardDescription className="text-sm">{result.phone || t('Common.na')}</CardDescription>
                                   )}
                                 </div>
                               </div>
