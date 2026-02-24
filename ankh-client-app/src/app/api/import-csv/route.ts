@@ -25,17 +25,27 @@ const HEADER_ALIASES: Record<string, string> = {
   'initial symptom': 'initial symptom',
   'client_condition_before_after': 'course completion status',
   'customer improvements': 'course completion status',
+  'customer improvement': 'course completion status',
+  'improvements': 'course completion status',
+  'customer feedback': 'course completion status',
+  'customer feedback/specifics': 'course completion status',
+  'customer feedback specifics': 'course completion status',
+  'feedback': 'course completion status',
   'customer symptoms': 'customer symptoms',
   'client_notes': 'customer symptoms',
+  'symptoms': 'customer symptoms',
   'lesson id': 'lesson id',
   'lesson_id': 'lesson id',
   'lesson date': 'lesson date',
   'lesson_date': 'lesson date',
   'timestamp': 'lesson date',
+  'date': 'lesson date',
   'instructor name': 'instructor name',
   'instructor_name': 'instructor name',
+  'instructor': 'instructor name',
   'lesson type': 'lesson type',
   'lesson_type': 'lesson type',
+  'type': 'lesson type',
   'care_program': 'lesson type',
   'location': 'location name',
   'location name': 'location name',
@@ -44,12 +54,12 @@ const HEADER_ALIASES: Record<string, string> = {
   'lesson_content': 'lesson content',
   'lesson details': 'lesson content',
   'lesson_details': 'lesson content',
+  'content': 'lesson content',
+  'details': 'lesson content',
   'owner_feedback': 'lesson content',
   'course completion status': 'course completion status',
   'course_completion_status': 'course completion status',
-  'customer feedback': 'course completion status',
-  'customer feedback/specifics': 'course completion status',
-  'customer feedback specifics': 'course completion status'
+  'completion status': 'course completion status'
 }
 
 const normalizeHeader = (header: string) =>
@@ -197,7 +207,6 @@ export async function POST(request: NextRequest) {
       lessonType: string
       locationName: string
       customerSymptoms: string
-      customerImprovements: string
       lessonContent: string
       courseCompletionStatus: string
     }> = []
@@ -220,9 +229,8 @@ export async function POST(request: NextRequest) {
       const lessonType = row['lesson type']
       const locationName = row['location name']
       const customerSymptoms = row['customer symptoms']
-      const customerImprovements = row['customer improvements']
-      const lessonContent = row['lesson content']
       const courseCompletionStatus = row['course completion status']
+      const lessonContent = row['lesson content']
 
       if (!customerId || !customerName || !lessonId || !lessonDate || !instructorName) {
         rowErrors.push(`Row ${rowNumber}: Missing required fields`)
@@ -247,7 +255,6 @@ export async function POST(request: NextRequest) {
         lessonType,
         locationName,
         customerSymptoms,
-        customerImprovements,
         lessonContent,
         courseCompletionStatus
       })
@@ -415,14 +422,14 @@ export async function POST(request: NextRequest) {
               },
               update: {
                 customerSymptoms: row.customerSymptoms || null,
-                customerImprovements: row.courseCompletionStatus || row.customerImprovements || null,
+                customerImprovements: row.courseCompletionStatus || null,
                 status: 'attended'
               },
               create: {
                 customerId: row.customerId,
                 lessonId: row.lessonId,
                 customerSymptoms: row.customerSymptoms || null,
-                customerImprovements: row.courseCompletionStatus || row.customerImprovements || null,
+                customerImprovements: row.courseCompletionStatus || null,
                 status: 'attended'
               }
             })
