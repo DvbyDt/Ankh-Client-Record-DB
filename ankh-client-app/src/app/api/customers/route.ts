@@ -32,7 +32,22 @@ export async function GET(request: NextRequest) {
         email: true,
         phone: true,
         createdAt: true,
-        deletedAt: true
+        deletedAt: true,
+        lessonParticipants: {
+          select: {
+            lesson: {
+              select: {
+                createdAt: true
+              }
+            }
+          },
+          orderBy: {
+            lesson: {
+              createdAt: 'desc'
+            }
+          },
+          take: 1
+        }
       },
       orderBy: {
         createdAt: 'desc'

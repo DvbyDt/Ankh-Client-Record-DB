@@ -48,6 +48,7 @@
     "email": "이메일",
     "phone": "전화번호",
     "lessons": "수업",
+    "lessonsCount": "레슨 횟수",
     "initialCondition": "초기 상태",
     "mainConcern": "주요 증상",
     "currentHealthIssue": "현재 건강 문제",

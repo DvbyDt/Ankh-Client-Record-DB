@@ -93,6 +93,7 @@
     "email": "Email",
     "phone": "Phone",
     "lessons": "Lessons",
+    "lessonsCount": "Number of Lessons",
     "initialCondition": "Initial Condition",
     "mainConcern": "Main Concern",
     "currentHealthIssue": "Current Health Issue",
