@@ -1124,12 +1124,16 @@ export default function HomePage() {
                           <TableHead className="w-[25%] px-4 py-3 font-semibold">Name</TableHead>
                           <TableHead className="w-[25%] px-4 py-3 font-semibold">Email</TableHead>
                           <TableHead className="w-[15%] px-4 py-3 font-semibold">Phone</TableHead>
-                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Created At</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Last Lesson Date</TableHead>
                           <TableHead className="w-[20%] px-4 py-3 font-semibold text-center">Action</TableHead>
                         </TableHeader>
                         <TableBody>
                           {allCustomers.length > 0 ? (
-                            allCustomers.map((customer) => (
+                            allCustomers.map((customer) => {
+                              const mostRecentLessonDate = customer.lessonParticipants?.[0]?.lesson?.createdAt
+                                ? new Date(customer.lessonParticipants[0].lesson.createdAt).toLocaleDateString()
+                                : 'N/A'
+                              return (
                               <TableRow key={customer.id}>
                                 <TableCell className="w-[25%] px-4 py-3">
                                   <button
@@ -1142,7 +1146,7 @@ export default function HomePage() {
                                 <TableCell className="w-[25%] px-4 py-3 break-all">{customer.email}</TableCell>
                                 <TableCell className="w-[15%] px-4 py-3">{customer.phone || 'N/A'}</TableCell>
                                 <TableCell className="w-[15%] px-4 py-3">
-                                  {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : 'N/A'}
+                                  {mostRecentLessonDate}
                                 </TableCell>
                                 <TableCell className="w-[20%] px-4 py-3 text-center">
                                   <div className="flex items-center justify-center gap-2">
@@ -1164,7 +1168,8 @@ export default function HomePage() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                            ))
+                            )
+                            })
                           ) : (
                             <TableRow>
                               <TableCell colSpan={5} className="text-center text-gray-500 py-8">
@@ -1444,11 +1449,16 @@ export default function HomePage() {
                         <Card key={result.id} className="border border-gray-200">
                           <CardHeader className="pb-2">
                             <div className="flex items-start justify-between gap-3">
-                              <div>
+                              <div className="flex-1">
                                 <CardTitle className="text-base">
                                   {`${result.firstName} ${result.lastName}`}
                                 </CardTitle>
-                                <CardDescription className="break-all">{result.email}</CardDescription>
+                                <div className="mt-2 space-y-1">
+                                  <CardDescription className="break-all text-sm">{result.email}</CardDescription>
+                                  {searchType === 'customer' && result.phone && (
+                                    <CardDescription className="text-sm">{result.phone}</CardDescription>
+                                  )}
+                                </div>
                               </div>
                               {currentUser?.role === 'MANAGER' && searchType === 'customer' && (
                                 <Button
@@ -1465,7 +1475,7 @@ export default function HomePage() {
                           <CardContent className="space-y-3">
                             <div className="text-sm text-gray-700">
                               <span className="font-medium">
-                                {searchType === 'customer' ? t('CustomerSearch.lessons') : t('CustomerSearch.customersCount')}: 
+                                {searchType === 'customer' ? t('CustomerSearch.lessonsCount') : t('CustomerSearch.customersCount')}: 
                               </span>
                               {searchType === 'customer'
                                 ? (result.lessonParticipants?.length || 0)
@@ -1485,11 +1495,6 @@ export default function HomePage() {
                               <div className="pt-2 space-y-4">
                                 {searchType === 'customer' && (
                                   <>
-                                    <div className="text-sm text-gray-600">
-                                      <span className="font-medium">{t('CustomerSearch.phone')}: </span>
-                                      {result.phone || t('Common.na')}
-                                    </div>
-
                                     <div className="border border-gray-200 rounded-lg p-3">
                                       <h4 className="text-sm font-medium mb-2">{t('CustomerSearch.initialCondition')}</h4>
                                       <div className="grid gap-2 text-sm">
@@ -1498,6 +1503,53 @@ export default function HomePage() {
                                           {result?.lessonParticipants?.[0]?.customerSymptoms || t('Common.na')}
                                         </div>
                                         <div>
+                                          <span className="font-medium">{t('CustomerSearch.currentHealthIssue')}: </span>
+                                          {result?.lessonParticipants?.[result.lessonParticipants.length - 1]?.customerSymptoms || t('Common.na')}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <h5 className="text-sm font-medium">{t('CustomerSearch.lessonDetails')}</h5>
+                                      {result?.lessonParticipants && result.lessonParticipants.length > 0 ? (
+                                        result.lessonParticipants.map((participant, index) => (
+                                          <div key={index} className="border border-gray-100 rounded-md p-2 bg-gray-50">
+                                            <div className="text-sm font-medium mb-2">
+                                              {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
+                                            </div>
+                                            <div className="text-xs text-gray-600 space-y-1">
+                                              {participant.lesson.lessonType && (
+                                                <div>
+                                                  <span className="font-medium">{t('CustomerSearch.lessonType')}:</span> {participant.lesson.lessonType}
+                                                </div>
+                                              )}
+                                              {participant.lesson.createdAt && (
+                                                <div>
+                                                  <span className="font-medium">{t('CustomerSearch.lessonDate')}:</span> {new Date(participant.lesson.createdAt).toLocaleDateString()}
+                                                </div>
+                                              )}
+                                            </div>
+                                            {participant.lesson.lessonContent && (
+                                              <div className="text-sm text-gray-700 mt-2">
+                                                <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent}
+                                              </div>
+                                            )}
+                                            {participant.customerSymptoms && (
+                                              <div className="text-sm text-gray-700 mt-1">
+                                                <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
+                                              </div>
+                                            )}
+                                            {participant.customerImprovements && (
+                                              <div className="text-sm text-gray-700 mt-1">
+                                                <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="text-sm text-gray-500 italic">{t('Common.na')}</div>
+                                      )}
+                                    </div>
                                           <span className="font-medium">{t('CustomerSearch.currentHealthIssue')}: </span>
                                           {result?.lessonParticipants?.[result.lessonParticipants.length - 1]?.customerSymptoms || t('Common.na')}
                                         </div>
