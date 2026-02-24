@@ -164,6 +164,7 @@ export default function HomePage() {
   const [isCustomerSearching, setIsCustomerSearching] = useState(false)
 
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
 
@@ -1514,34 +1515,50 @@ export default function HomePage() {
                                       {result?.lessonParticipants && result.lessonParticipants.length > 0 ? (
                                         result.lessonParticipants.map((participant: CustomerLessonParticipant, index: number) => (
                                           <div key={index} className="border border-gray-100 rounded-md p-2 bg-gray-50">
-                                            <div className="text-sm font-medium mb-2">
-                                              {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
-                                            </div>
-                                            <div className="text-xs text-gray-600 space-y-1">
-                                              {participant.lesson.lessonType && (
-                                                <div>
-                                                  <span className="font-medium">{t('CustomerSearch.lessonType')}:</span> {participant.lesson.lessonType}
+                                            <div className="flex items-start justify-between">
+                                              <div className="flex-1">
+                                                <div className="text-sm font-medium mb-2">
+                                                  {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
                                                 </div>
-                                              )}
-                                              {participant.lesson.createdAt && (
-                                                <div>
-                                                  <span className="font-medium">{t('CustomerSearch.lessonDate')}:</span> {new Date(participant.lesson.createdAt).toLocaleDateString()}
+                                                <div className="text-xs text-gray-600 space-y-1">
+                                                  {participant.lesson.lessonType && (
+                                                    <div>
+                                                      <span className="font-medium">{t('CustomerSearch.lessonType')}:</span> {participant.lesson.lessonType}
+                                                    </div>
+                                                  )}
+                                                  {participant.lesson.createdAt && (
+                                                    <div>
+                                                      <span className="font-medium">{t('CustomerSearch.lessonDate')}:</span> {new Date(participant.lesson.createdAt).toLocaleDateString()}
+                                                    </div>
+                                                  )}
                                                 </div>
-                                              )}
+                                              </div>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setExpandedLessonId(expandedLessonId === participant.lesson.id ? null : participant.lesson.id)}
+                                                className="text-xs"
+                                              >
+                                                {expandedLessonId === participant.lesson.id ? 'Less' : 'More'}
+                                              </Button>
                                             </div>
-                                            {participant.lesson.lessonContent && (
-                                              <div className="text-sm text-gray-700 mt-2">
-                                                <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent}
-                                              </div>
-                                            )}
-                                            {participant.customerSymptoms && (
-                                              <div className="text-sm text-gray-700 mt-1">
-                                                <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
-                                              </div>
-                                            )}
-                                            {participant.customerImprovements && (
-                                              <div className="text-sm text-gray-700 mt-1">
-                                                <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
+                                            {expandedLessonId === participant.lesson.id && (
+                                              <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                                {participant.lesson.lessonContent && (
+                                                  <div className="text-sm text-gray-700">
+                                                    <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent}
+                                                  </div>
+                                                )}
+                                                {participant.customerSymptoms && (
+                                                  <div className="text-sm text-gray-700">
+                                                    <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
+                                                  </div>
+                                                )}
+                                                {participant.customerImprovements && (
+                                                  <div className="text-sm text-gray-700">
+                                                    <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
                                           </div>
