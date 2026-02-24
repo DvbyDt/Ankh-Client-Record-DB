@@ -35,18 +35,30 @@ export async function GET(request: NextRequest) {
         deletedAt: true,
         lessonParticipants: {
           select: {
+            id: true,
             lesson: {
               select: {
-                createdAt: true
+                id: true,
+                lessonType: true,
+                lessonContent: true,
+                createdAt: true,
+                instructor: {
+                  select: {
+                    firstName: true,
+                    lastName: true
+                  }
+                }
               }
-            }
+            },
+            customerSymptoms: true,
+            customerImprovements: true,
+            status: true
           },
           orderBy: {
             lesson: {
               createdAt: 'desc'
             }
-          },
-          take: 1
+          }
         }
       },
       orderBy: {
