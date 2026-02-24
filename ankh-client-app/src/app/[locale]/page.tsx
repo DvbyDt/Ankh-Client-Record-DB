@@ -1512,7 +1512,7 @@ export default function HomePage() {
                                     <div className="space-y-2">
                                       <h5 className="text-sm font-medium">{t('CustomerSearch.lessonDetails')}</h5>
                                       {result?.lessonParticipants && result.lessonParticipants.length > 0 ? (
-                                        result.lessonParticipants.map((participant, index) => (
+                                        result.lessonParticipants.map((participant: CustomerLessonParticipant, index: number) => (
                                           <div key={index} className="border border-gray-100 rounded-md p-2 bg-gray-50">
                                             <div className="text-sm font-medium mb-2">
                                               {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
@@ -1549,49 +1549,6 @@ export default function HomePage() {
                                       ) : (
                                         <div className="text-sm text-gray-500 italic">{t('Common.na')}</div>
                                       )}
-                                    </div>
-                                          <span className="font-medium">{t('CustomerSearch.currentHealthIssue')}: </span>
-                                          {result?.lessonParticipants?.[result.lessonParticipants.length - 1]?.customerSymptoms || t('Common.na')}
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="border border-gray-200 rounded-lg p-3">
-                                      <h4 className="text-sm font-medium mb-2">{t('CustomerSearch.lessonDetails')}</h4>
-                                      <div className="space-y-2">
-                                        {result?.lessonParticipants?.map((participant: any, index: number) => (
-                                          <div key={index} className="border border-gray-100 rounded-md p-2">
-                                            <div className="flex items-start justify-between gap-3">
-                                              <div className="text-sm font-medium">
-                                                {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
-                                              </div>
-                                              {currentUser?.role === 'MANAGER' && (
-                                                <Button
-                                                  variant="destructive"
-                                                  size="sm"
-                                                  onClick={() => handleDeleteLessonParticipant(result.id, participant.lesson.id, `${result.firstName} ${result.lastName}`)}
-                                                  disabled={isDeletingLesson}
-                                                >
-                                                  <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                              )}
-                                            </div>
-                                            <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
-                                              <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
-                                            </div>
-                                            <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
-                                              <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent || t('Common.na')}
-                                            </div>
-                                            <div className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
-                                              <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements || t('Common.na')}
-                                            </div>
-                                            <div className="text-xs text-gray-500 mt-2">
-                                              {participant.lesson.lessonType ? `${t('CustomerSearch.lessonType')}: ${participant.lesson.lessonType}` : ''}
-                                              {participant.lesson.createdAt ? ` · ${t('CustomerSearch.lessonDate')}: ${new Date(participant.lesson.createdAt).toLocaleDateString()}` : ''}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
                                     </div>
                                   </>
                                 )}
