@@ -47,6 +47,7 @@ interface Customer {
 }
 
 interface CustomerLessonParticipant {
+  id: string
   lesson: {
     id: string
     lessonType?: string
@@ -59,6 +60,7 @@ interface CustomerLessonParticipant {
   }
   customerSymptoms?: string
   customerImprovements?: string
+  status?: string
 }
 
 interface LessonFormData {
@@ -1120,60 +1122,71 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <Table className="table-fixed w-full">
+                      <Table className="w-full border-collapse">
                         <TableHeader>
-                          <TableHead className="w-[25%] px-4 py-3 font-semibold">Name</TableHead>
-                          <TableHead className="w-[25%] px-4 py-3 font-semibold">Email</TableHead>
-                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Phone</TableHead>
-                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Last Lesson Date</TableHead>
-                          <TableHead className="w-[20%] px-4 py-3 font-semibold text-center">Action</TableHead>
+                          <TableRow className="bg-gray-100">
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[100px]">Customer ID</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Customer Name</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[150px]">Initial Symptom</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[100px]">Lesson ID</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Lesson Date</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Instructor Name</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[120px]">Lesson Type</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[180px]">Lesson Content</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[150px]">Customer Symptoms</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[150px]">Customer Improvements</TableHead>
+                            <TableHead className="px-4 py-3 font-semibold text-left min-w-[140px]">Course Completion Status</TableHead>
+                          </TableRow>
                         </TableHeader>
                         <TableBody>
                           {allCustomers.length > 0 ? (
-                            allCustomers.map((customer) => {
-                              const mostRecentLessonDate = customer.lessonParticipants?.[0]?.lesson?.createdAt
-                                ? new Date(customer.lessonParticipants[0].lesson.createdAt).toLocaleDateString()
-                                : 'N/A'
-                              return (
-                              <TableRow key={customer.id}>
-                                <TableCell className="w-[25%] px-4 py-3">
-                                  <button
-                                    onClick={() => handleViewCustomerDetails(customer.id)}
-                                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                                  >
-                                    {`${customer.firstName} ${customer.lastName}`}
-                                  </button>
-                                </TableCell>
-                                <TableCell className="w-[25%] px-4 py-3 break-all">{customer.email}</TableCell>
-                                <TableCell className="w-[15%] px-4 py-3">{customer.phone || 'N/A'}</TableCell>
-                                <TableCell className="w-[15%] px-4 py-3">
-                                  {mostRecentLessonDate}
-                                </TableCell>
-                                <TableCell className="w-[20%] px-4 py-3 text-center">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleEditCustomer(customer)}
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      onClick={() => handleDeleteCustomer(customer.id, `${customer.firstName} ${customer.lastName}`)}
-                                      disabled={isDeletingCustomer}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
+                            allCustomers.flatMap((customer) =>
+                              customer.lessonParticipants && customer.lessonParticipants.length > 0
+                                ? customer.lessonParticipants.map((participant, index) => {
+                                    // Get the initial symptom from the first (earliest) lesson
+                                    const initialSymptom = customer.lessonParticipants && customer.lessonParticipants.length > 0
+                                      ? customer.lessonParticipants[customer.lessonParticipants.length - 1]?.customerSymptoms || 'N/A'
+                                      : 'N/A'
+                                    return (
+                                      <TableRow key={`${customer.id}-${participant.id}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                        <TableCell className="px-4 py-3 text-sm">{customer.id}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm font-medium">{`${customer.firstName} ${customer.lastName}`}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">{initialSymptom}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">{participant.lesson.id}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">
+                                          {participant.lesson.createdAt ? new Date(participant.lesson.createdAt).toLocaleDateString() : 'N/A'}
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">{`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">{participant.lesson.lessonType || 'N/A'}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">{participant.lesson.lessonContent || 'N/A'}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">{participant.customerSymptoms || 'N/A'}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">{participant.customerImprovements || 'N/A'}</TableCell>
+                                        <TableCell className="px-4 py-3 text-sm">
+                                          <span className={`px-2 py-1 rounded text-xs ${
+                                            participant.status === 'attended' ? 'bg-green-100 text-green-700' : 
+                                            participant.status === 'absent' ? 'bg-red-100 text-red-700' :
+                                            participant.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
+                                            'bg-blue-100 text-blue-700'
+                                          }`}>
+                                            {participant.status || 'N/A'}
+                                          </span>
+                                        </TableCell>
+                                      </TableRow>
+                                    )
+                                  })
+                                : (
+                                    <TableRow key={customer.id} className="bg-gray-50">
+                                      <TableCell className="px-4 py-3 text-sm">{customer.id}</TableCell>
+                                      <TableCell className="px-4 py-3 text-sm font-medium">{`${customer.firstName} ${customer.lastName}`}</TableCell>
+                                      <TableCell colSpan={9} className="px-4 py-3 text-sm text-gray-500">
+                                        No lessons assigned
+                                      </TableCell>
+                                    </TableRow>
+                                  )
                             )
-                            })
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={11} className="text-center text-gray-500 py-8">
                                 No customers found
                               </TableCell>
                             </TableRow>
