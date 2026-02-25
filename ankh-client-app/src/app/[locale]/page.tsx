@@ -1174,40 +1174,55 @@ export default function HomePage() {
                                 <div className="mt-4 pl-4 border-l-4 border-blue-200">
                                   {customer.lessonParticipants && customer.lessonParticipants.length > 0 ? (
                                     <div className="space-y-3">
-                                      {customer.lessonParticipants.map((participant, index) => (
-                                        <div key={`${customer.id}-${participant.id}`} className="bg-gray-50 p-3 rounded">
-                                          <div className="flex justify-between items-start">
-                                            <div className="flex-1 text-sm space-y-1">
-                                              <p><strong>Lesson ID:</strong> {participant.lesson.id}</p>
-                                              <p><strong>Lesson Date:</strong> {participant.lesson.createdAt ? new Date(participant.lesson.createdAt).toLocaleDateString() : 'N/A'}</p>
-                                              <p><strong>Instructor:</strong> {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}</p>
-                                              <p><strong>Lesson Type:</strong> {participant.lesson.lessonType || 'N/A'}</p>
-                                              <p><strong>Lesson Content:</strong> {participant.lesson.lessonContent || 'N/A'}</p>
-                                              <p><strong>Customer Symptoms:</strong> {participant.customerSymptoms || 'N/A'}</p>
-                                              <p><strong>Customer Improvements:</strong> {participant.customerImprovements || 'N/A'}</p>
-                                              <p><strong>Course Completion Status:</strong> 
-                                                <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                                                  participant.status === 'attended' ? 'bg-green-100 text-green-700' : 
-                                                  participant.status === 'absent' ? 'bg-red-100 text-red-700' :
-                                                  participant.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
-                                                  'bg-blue-100 text-blue-700'
-                                                }`}>
-                                                  {participant.status || 'N/A'}
-                                                </span>
-                                              </p>
+                                      {customer.lessonParticipants.map((participant) => {
+                                        const isLessonExpanded = expandedLessonId === participant.lesson.id
+
+                                        return (
+                                          <div
+                                            key={`${customer.id}-${participant.id}`}
+                                            className={`bg-gray-50 p-3 rounded border cursor-pointer ${isLessonExpanded ? 'border-blue-200' : 'border-gray-100'}`}
+                                            onClick={() => setExpandedLessonId(isLessonExpanded ? null : participant.lesson.id)}
+                                          >
+                                            <div className="flex justify-between items-start">
+                                              <div className="flex-1 text-sm space-y-1">
+                                                <p><strong>Lesson Date:</strong> {participant.lesson.createdAt ? new Date(participant.lesson.createdAt).toLocaleDateString() : 'N/A'}</p>
+                                                <p><strong>Instructor:</strong> {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}</p>
+                                              </div>
+                                              <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  handleDeleteLessonParticipant(customer.id, participant.lesson.id, `${customer.firstName} ${customer.lastName}`)
+                                                }}
+                                                disabled={isDeletingLesson}
+                                                className="ml-2"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
                                             </div>
-                                            <Button
-                                              variant="destructive"
-                                              size="sm"
-                                              onClick={() => handleDeleteLessonParticipant(customer.id, participant.lesson.id, `${customer.firstName} ${customer.lastName}`)}
-                                              disabled={isDeletingLesson}
-                                              className="ml-2"
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            {isLessonExpanded && (
+                                              <div className="mt-3 pt-3 border-t border-gray-200 space-y-1 text-sm">
+                                                <p><strong>Lesson ID:</strong> {participant.lesson.id}</p>
+                                                <p><strong>Lesson Type:</strong> {participant.lesson.lessonType || 'N/A'}</p>
+                                                <p><strong>Lesson Content:</strong> {participant.lesson.lessonContent || 'N/A'}</p>
+                                                <p><strong>Customer Symptoms:</strong> {participant.customerSymptoms || 'N/A'}</p>
+                                                <p><strong>Customer Improvements:</strong> {participant.customerImprovements || 'N/A'}</p>
+                                                <p><strong>Course Completion Status:</strong>
+                                                  <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                                                    participant.status === 'attended' ? 'bg-green-100 text-green-700' :
+                                                    participant.status === 'absent' ? 'bg-red-100 text-red-700' :
+                                                    participant.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
+                                                    'bg-blue-100 text-blue-700'
+                                                  }`}>
+                                                    {participant.status || 'N/A'}
+                                                  </span>
+                                                </p>
+                                              </div>
+                                            )}
                                           </div>
-                                        </div>
-                                      ))}
+                                        )
+                                      })}
                                     </div>
                                   ) : (
                                     <p className="text-sm text-gray-500">No lessons assigned</p>
@@ -1555,56 +1570,49 @@ export default function HomePage() {
                                     <div className="space-y-2">
                                       <h5 className="text-sm font-medium">{t('CustomerSearch.lessonDetails')}</h5>
                                       {result?.lessonParticipants && result.lessonParticipants.length > 0 ? (
-                                        result.lessonParticipants.map((participant: CustomerLessonParticipant, index: number) => (
-                                          <div key={index} className="border border-gray-100 rounded-md p-2 bg-gray-50">
-                                            <div className="flex items-start justify-between">
-                                              <div className="flex-1">
-                                                <div className="text-sm font-medium mb-2">
-                                                  {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
-                                                </div>
-                                                <div className="text-xs text-gray-600 space-y-1">
+                                        result.lessonParticipants.map((participant: CustomerLessonParticipant) => {
+                                          const isLessonExpanded = expandedSearchLessonId === participant.lesson.id
+
+                                          return (
+                                            <div
+                                              key={participant.lesson.id}
+                                              className={`border rounded-md p-2 bg-gray-50 cursor-pointer ${isLessonExpanded ? 'border-blue-200' : 'border-gray-100'}`}
+                                              onClick={() => setExpandedSearchLessonId(isLessonExpanded ? null : participant.lesson.id)}
+                                            >
+                                              <div className="text-sm font-medium mb-2">
+                                                {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
+                                              </div>
+                                              <div className="text-xs text-gray-600">
+                                                <span className="font-medium">{t('CustomerSearch.lessonDate')}:</span>{' '}
+                                                {participant.lesson.createdAt ? new Date(participant.lesson.createdAt).toLocaleDateString() : t('Common.na')}
+                                              </div>
+                                              {isLessonExpanded && (
+                                                <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                                  {participant.lesson.lessonContent && (
+                                                    <div className="text-sm text-gray-700">
+                                                      <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent}
+                                                    </div>
+                                                  )}
                                                   {participant.lesson.lessonType && (
-                                                    <div>
+                                                    <div className="text-sm text-gray-700">
                                                       <span className="font-medium">{t('CustomerSearch.lessonType')}:</span> {participant.lesson.lessonType}
                                                     </div>
                                                   )}
-                                                  {participant.lesson.createdAt && (
-                                                    <div>
-                                                      <span className="font-medium">{t('CustomerSearch.lessonDate')}:</span> {new Date(participant.lesson.createdAt).toLocaleDateString()}
+                                                  {participant.customerSymptoms && (
+                                                    <div className="text-sm text-gray-700">
+                                                      <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
+                                                    </div>
+                                                  )}
+                                                  {participant.customerImprovements && (
+                                                    <div className="text-sm text-gray-700">
+                                                      <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
                                                     </div>
                                                   )}
                                                 </div>
-                                              </div>
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => setExpandedSearchLessonId(expandedSearchLessonId === participant.lesson.id ? null : participant.lesson.id)}
-                                                className="text-xs"
-                                              >
-                                                {expandedSearchLessonId === participant.lesson.id ? 'Less' : 'More'}
-                                              </Button>
+                                              )}
                                             </div>
-                                            {expandedSearchLessonId === participant.lesson.id && (
-                                              <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-                                                {participant.lesson.lessonContent && (
-                                                  <div className="text-sm text-gray-700">
-                                                    <span className="font-medium">{t('CustomerSearch.lessonContent')}:</span> {participant.lesson.lessonContent}
-                                                  </div>
-                                                )}
-                                                {participant.customerSymptoms && (
-                                                  <div className="text-sm text-gray-700">
-                                                    <span className="font-medium">{t('CustomerSearch.symptoms')}:</span> {participant.customerSymptoms}
-                                                  </div>
-                                                )}
-                                                {participant.customerImprovements && (
-                                                  <div className="text-sm text-gray-700">
-                                                    <span className="font-medium">{t('CustomerSearch.improvements')}:</span> {participant.customerImprovements}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))
+                                          )
+                                        })
                                       ) : (
                                         <div className="text-sm text-gray-500 italic">{t('Common.na')}</div>
                                       )}
