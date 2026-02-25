@@ -169,6 +169,8 @@ export default function HomePage() {
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
   const [expandedSearchResultId, setExpandedSearchResultId] = useState<string | null>(null);
   const [expandedSearchLessonId, setExpandedSearchLessonId] = useState<string | null>(null);
+  const [showAllCustomerLessons, setShowAllCustomerLessons] = useState<Record<string, boolean>>({});
+  const [showAllSearchLessons, setShowAllSearchLessons] = useState<Record<string, boolean>>({});
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
 
@@ -1130,6 +1132,10 @@ export default function HomePage() {
                             ? customer.lessonParticipants[customer.lessonParticipants.length - 1]?.customerSymptoms || 'N/A'
                             : 'N/A'
                           const isExpanded = expandedCustomerId === customer.id
+                          const allLessons = customer.lessonParticipants || []
+                          const showAllLessons = !!showAllCustomerLessons[customer.id]
+                          const lessonsToShow = showAllLessons ? allLessons : allLessons.slice(0, 5)
+                          const hasMoreLessons = allLessons.length > 5
                           
                           return (
                             <div key={customer.id} className="border rounded-lg p-4 bg-white">
@@ -1172,9 +1178,9 @@ export default function HomePage() {
                               {/* Expandable Lesson Details */}
                               {isExpanded && (
                                 <div className="mt-4 pl-4 border-l-4 border-blue-200">
-                                  {customer.lessonParticipants && customer.lessonParticipants.length > 0 ? (
+                                  {allLessons.length > 0 ? (
                                     <div className="space-y-3">
-                                      {customer.lessonParticipants.map((participant) => {
+                                      {lessonsToShow.map((participant) => {
                                         const isLessonExpanded = expandedLessonId === participant.lesson.id
 
                                         return (
@@ -1223,6 +1229,22 @@ export default function HomePage() {
                                           </div>
                                         )
                                       })}
+                                      {hasMoreLessons && (
+                                        <div className="pt-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              setShowAllCustomerLessons((prev) => ({
+                                                ...prev,
+                                                [customer.id]: !showAllLessons
+                                              }))
+                                            }
+                                          >
+                                            {showAllLessons ? t('Common.showLess') : t('Common.showMore')}
+                                          </Button>
+                                        </div>
+                                      )}
                                     </div>
                                   ) : (
                                     <p className="text-sm text-gray-500">No lessons assigned</p>
@@ -1570,7 +1592,15 @@ export default function HomePage() {
                                     <div className="space-y-2">
                                       <h5 className="text-sm font-medium">{t('CustomerSearch.lessonDetails')}</h5>
                                       {result?.lessonParticipants && result.lessonParticipants.length > 0 ? (
-                                        result.lessonParticipants.map((participant: CustomerLessonParticipant) => {
+                                        (() => {
+                                          const allLessons = result.lessonParticipants
+                                          const showAllLessons = !!showAllSearchLessons[result.id]
+                                          const lessonsToShow = showAllLessons ? allLessons : allLessons.slice(0, 5)
+                                          const hasMoreLessons = allLessons.length > 5
+
+                                          return (
+                                            <>
+                                              {lessonsToShow.map((participant: CustomerLessonParticipant) => {
                                           const isLessonExpanded = expandedSearchLessonId === participant.lesson.id
 
                                           return (
@@ -1612,7 +1642,26 @@ export default function HomePage() {
                                               )}
                                             </div>
                                           )
-                                        })
+                                        })}
+                                              {hasMoreLessons && (
+                                                <div className="pt-2">
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      setShowAllSearchLessons((prev) => ({
+                                                        ...prev,
+                                                        [result.id]: !showAllLessons
+                                                      }))
+                                                    }
+                                                  >
+                                                    {showAllLessons ? t('Common.showLess') : t('Common.showMore')}
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </>
+                                          )
+                                        })()
                                       ) : (
                                         <div className="text-sm text-gray-500 italic">{t('Common.na')}</div>
                                       )}

@@ -13,6 +13,8 @@
     "yes": "Yes",
     "no": "No",
     "na": "N/A",
+    "showMore": "Show More",
+    "showLess": "Show Less",
     "actions": "Actions"
   },
   "Auth": {

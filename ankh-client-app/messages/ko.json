@@ -13,6 +13,8 @@
     "yes": "예",
     "no": "아니오",
     "na": "해당 없음",
+    "showMore": "더 보기",
+    "showLess": "접기",
     "actions": "작업"
   },
   "Auth": {
