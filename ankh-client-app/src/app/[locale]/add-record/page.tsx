@@ -68,6 +68,14 @@ export default function AddRecordPage() {
   const locale = pathname.split('/')[1] || 'en'
   const [step, setStep] = useState<'select-type' | 'search-customer' | 'form'>('select-type')
   const [customerType, setCustomerType] = useState<'new' | 'existing' | null>(null)
+
+  // Helper function to format name based on locale
+  const formatName = (firstName: string, lastName: string): string => {
+    if (locale === 'ko') {
+      return `${lastName} ${firstName}`
+    }
+    return `${firstName} ${lastName}`
+  }
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('')
@@ -442,7 +450,7 @@ export default function AddRecordPage() {
                         <CardContent className="py-3">
                           <div className="flex justify-between items-start">
                             <div className="flex-1 cursor-pointer" onClick={() => handleSelectExistingCustomer(customer)}>
-                              <p className="font-medium">{customer.firstName} {customer.lastName}</p>
+                              <p className="font-medium">{formatName(customer.firstName, customer.lastName)}</p>
                               <p className="text-sm text-gray-600">{customer.email}</p>
                               {customer.phone && (
                                 <p className="text-sm text-gray-500">{customer.phone}</p>
@@ -561,7 +569,7 @@ export default function AddRecordPage() {
                 <CardTitle>{t('AddRecord.lessonInfo')}</CardTitle>
                 <CardDescription>
                   {customerType === 'existing' && selectedCustomer
-                    ? t('AddRecord.lessonInfoForCustomer', { customerName: `${selectedCustomer.firstName} ${selectedCustomer.lastName}` })
+                    ? t('AddRecord.lessonInfoForCustomer', { customerName: formatName(selectedCustomer.firstName, selectedCustomer.lastName) })
                     : t('AddRecord.enterDetails')}
                 </CardDescription>
               </CardHeader>
@@ -580,7 +588,7 @@ export default function AddRecordPage() {
                       <SelectContent>
                         {instructors.map((instructor) => (
                           <SelectItem key={instructor.id} value={instructor.id}>
-                            {instructor.firstName} {instructor.lastName}
+                            {formatName(instructor.firstName, instructor.lastName)}
                           </SelectItem>
                         ))}
                       </SelectContent>
