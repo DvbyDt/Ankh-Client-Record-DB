@@ -111,6 +111,14 @@ export default function HomePage() {
   const t = useTranslations();
   const locale = pathname.split('/')[1] || 'en';
 
+  // Helper function to format name based on locale
+  const formatName = (firstName: string, lastName: string): string => {
+    if (locale === 'ko') {
+      return `${lastName} ${firstName}`
+    }
+    return `${firstName} ${lastName}`
+  }
+
   // State management for search functionality
   const [searchTerm, setSearchTerm] = useState('')
   const [searchType, setSearchType] = useState<SearchType>('customer')
@@ -796,7 +804,7 @@ export default function HomePage() {
               {isLoggedIn ? (
                 <>
                   <span className="text-sm text-gray-600">
-                    Welcome, {currentUser?.firstName} {currentUser?.lastName} ({currentUser?.role})
+                    Welcome, {currentUser && formatName(currentUser.firstName, currentUser.lastName)} ({currentUser?.role})
                   </span>
                   <Button variant="outline" onClick={handleLogout}>
                     {t('Auth.logout')}
@@ -1142,7 +1150,7 @@ export default function HomePage() {
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-4 mb-2">
-                                    <span className="font-semibold text-lg">{`${customer.firstName} ${customer.lastName}`}</span>
+                                    <span className="font-semibold text-lg">{formatName(customer.firstName, customer.lastName)}</span>
                                     <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">ID: {customer.id}</span>
                                   </div>
                                   <p className="text-sm text-gray-600">Email: {customer.email}</p>
@@ -1308,7 +1316,7 @@ export default function HomePage() {
               <Dialog open={!!selectedCustomerInfo} onOpenChange={(open) => !open && setSelectedCustomerInfo(null)}>
                 <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
                   <DialogHeader>
-                    <DialogTitle>{selectedCustomerInfo.firstName} {selectedCustomerInfo.lastName}</DialogTitle>
+                    <DialogTitle>{formatName(selectedCustomerInfo.firstName, selectedCustomerInfo.lastName)}</DialogTitle>
                     <DialogDescription>
                       Customer Information
                     </DialogDescription>
@@ -1361,7 +1369,7 @@ export default function HomePage() {
                               <div key={index} className="border border-gray-100 rounded-md p-2">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="text-sm font-medium">
-                                    {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
+                                    {formatName(participant.lesson.instructor.firstName, participant.lesson.instructor.lastName)}
                                   </div>
                                   {currentUser?.role === 'MANAGER' && (
                                     <Button
@@ -1531,7 +1539,7 @@ export default function HomePage() {
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1">
                                 <CardTitle className="text-base">
-                                  {`${result.firstName} ${result.lastName}`}
+                                  {formatName(result.firstName, result.lastName)}
                                 </CardTitle>
                                 <div className="mt-2 space-y-1">
                                   <CardDescription className="break-all text-sm">{result.email}</CardDescription>
@@ -1541,14 +1549,23 @@ export default function HomePage() {
                                 </div>
                               </div>
                               {currentUser?.role === 'MANAGER' && searchType === 'customer' && (
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleDeleteCustomer(result.id, `${result.firstName} ${result.lastName}`)}
-                                  disabled={isDeletingCustomer}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditCustomer(result)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteCustomer(result.id, `${result.firstName} ${result.lastName}`)}
+                                    disabled={isDeletingCustomer}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               )}
                             </div>
                           </CardHeader>
@@ -1610,7 +1627,7 @@ export default function HomePage() {
                                               onClick={() => setExpandedSearchLessonId(isLessonExpanded ? null : participant.lesson.id)}
                                             >
                                               <div className="text-sm font-medium mb-2">
-                                                {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}
+                                                {formatName(participant.lesson.instructor.firstName, participant.lesson.instructor.lastName)}
                                               </div>
                                               <div className="text-xs text-gray-600">
                                                 <span className="font-medium">{t('CustomerSearch.lessonDate')}:</span>{' '}
@@ -1679,7 +1696,7 @@ export default function HomePage() {
                                             lesson.lessonParticipants?.map((participant: any) => (
                                               <div key={`${lesson.id}-${participant.customerId}`} className="border border-gray-100 rounded-md p-2">
                                                 <div className="text-sm font-medium">
-                                                  {`${participant.customer.firstName} ${participant.customer.lastName}`}
+                                                  {formatName(participant.customer.firstName, participant.customer.lastName)}
                                                 </div>
                                                 <div className="text-sm text-gray-600">{participant.customer.email}</div>
                                                 <div className="text-sm text-gray-600">{t('CustomerSearch.lessonType')}: {lesson.lessonType}</div>

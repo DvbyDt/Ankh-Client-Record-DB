@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         deletedAt: true,
         lessonParticipants: {
           select: {
+            id: true,
             lesson: {
               select: {
                 id: true,
@@ -49,25 +50,29 @@ export async function GET(request: NextRequest) {
                 }
               }
             },
-            customerSymptoms: true, // Include symptoms from LessonParticipant
-            customerImprovements: true // Include improvements from LessonParticipant
+            customerSymptoms: true,
+            customerImprovements: true,
+            status: true
           },
-          orderBy: [
-            {
-              lesson: {}
+          orderBy: {
+            lesson: {
+              createdAt: 'desc'
             }
-          ],
-          take: 5 // Limit to last 5 lessons
+          }
         }
       },
       orderBy: [
         { firstName: 'asc' },
         { lastName: 'asc' }
-      ],
-      take: 10 // Limit results
+      ]
     });
 
     console.log('Search results:', customers);
+    
+    // Log lesson counts for debugging
+    customers.forEach((customer) => {
+      console.log(`Customer ${customer.firstName} ${customer.lastName}: ${customer.lessonParticipants.length} lessons`);
+    });
 
     if (customers.length === 0) {
       return NextResponse.json({
