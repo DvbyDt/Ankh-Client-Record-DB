@@ -44,9 +44,9 @@ export async function PUT(
     const body = await request.json()
     const { firstName, lastName, email, role, password } = body
 
-    if (!firstName || !lastName || !email) {
+    if (!firstName || !email) {
       return NextResponse.json(
-        { error: 'First name, last name, and email are required' },
+        { error: 'First name and email are required' },
         { status: 400 }
       )
     }
@@ -66,7 +66,7 @@ export async function PUT(
     // Build update data
     const updateData: { firstName: string; lastName: string; email: string; role: 'MANAGER' | 'INSTRUCTOR'; password?: string } = {
       firstName,
-      lastName,
+      lastName: lastName || '',
       email,
       role: (role as 'MANAGER' | 'INSTRUCTOR') || userExists.role
     }
