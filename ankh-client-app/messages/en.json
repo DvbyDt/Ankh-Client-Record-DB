@@ -54,6 +54,7 @@
     "addNewRecord": "Add New Record",
     "exportCSV": "Export CSV",
     "importCSV": "Import CSV",
+    "manageUsers": "Manage Users",
     "searchRecords": "Search Records",
     "searchRecordsDesc": "Search for customers, instructors, or lesson locations",
     "searchResults": "Search Results",
