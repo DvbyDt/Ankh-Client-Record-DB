@@ -64,11 +64,11 @@ export async function PUT(
     }
 
     // Build update data
-    const updateData: { firstName: string; lastName: string; email: string; role: string; password?: string } = {
+    const updateData: { firstName: string; lastName: string; email: string; role: 'MANAGER' | 'INSTRUCTOR'; password?: string } = {
       firstName,
       lastName,
       email,
-      role: role || userExists.role
+      role: (role as 'MANAGER' | 'INSTRUCTOR') || userExists.role
     }
 
     // Hash and update password if provided
