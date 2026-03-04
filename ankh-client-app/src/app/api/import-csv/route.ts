@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
+import bcrypt from 'bcryptjs'
+
+const DEFAULT_PASSWORD = 'Pw@123'
 
 // Required headers (canonical, case-insensitive)
 const REQUIRED_HEADERS = [
@@ -324,6 +327,8 @@ export async function POST(request: NextRequest) {
       })
       const locationIdByName = new Map(locationRecords.map(loc => [loc.name, loc.id]))
 
+      const hashedDefaultPassword = await bcrypt.hash(DEFAULT_PASSWORD, 12)
+
       const instructorRecords = Array.from(instructors.values())
       for (const chunk of chunkArray(instructorRecords, batchSize)) {
         await prisma.$transaction(
@@ -337,7 +342,7 @@ export async function POST(request: NextRequest) {
               },
               create: {
                 username: buildInstructorUsername(instructor.name),
-                password: 'imported_password_hash',
+                password: hashedDefaultPassword,
                 role: 'INSTRUCTOR',
                 firstName: firstName || '',
                 lastName: rest.join(' ') || '',
