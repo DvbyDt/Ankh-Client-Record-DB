@@ -95,8 +95,8 @@ export default function ManageUsersPage() {
   const handleSaveUserEdit = async () => {
     if (!editingUserId) return
 
-    if (!editFormData.firstName.trim() || !editFormData.lastName.trim() || !editFormData.email.trim()) {
-      setEditError('First name, last name, and email are required')
+    if (!editFormData.firstName.trim() || !editFormData.email.trim()) {
+      setEditError('First name and email are required')
       return
     }
 
@@ -249,7 +249,7 @@ export default function ManageUsersPage() {
                               />
                             </div>
                             <div>
-                              <Label>Last Name *</Label>
+                              <Label>Last Name</Label>
                               <Input
                                 value={editFormData.lastName}
                                 onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}

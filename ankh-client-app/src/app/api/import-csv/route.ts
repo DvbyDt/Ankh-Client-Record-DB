@@ -94,7 +94,7 @@ const hashString = (value: string) => {
 }
 
 const buildInstructorEmail = (name: string) =>
-  `${name.replace(/\s+/g, '')}@imported.local`
+  `${name.replace(/\s+/g, '')}@abc.com`
 
 const buildInstructorUsername = (name: string) => {
   const compact = name.replace(/\s+/g, '') || 'instructor'
@@ -369,13 +369,13 @@ export async function POST(request: NextRequest) {
               update: {
                 firstName: firstName || '',
                 lastName: rest.join(' ') || '',
-                email: `${customer.id}@imported.local`
+                email: `${customer.id}@abc.com`
               },
               create: {
                 id: customer.id,
                 firstName: firstName || '',
                 lastName: rest.join(' ') || '',
-                email: `${customer.id}@imported.local`
+                email: `${customer.id}@abc.com`
               }
             })
           })
