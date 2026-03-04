@@ -34,11 +34,12 @@ export default function ManageUsersPage() {
 
   // Edit mode state
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
-  const [editFormData, setEditFormData] = useState<{ firstName: string; lastName: string; email: string; role: string }>({
+  const [editFormData, setEditFormData] = useState<{ firstName: string; lastName: string; email: string; role: string; password: string }>({
     firstName: '',
     lastName: '',
     email: '',
-    role: ''
+    role: '',
+    password: ''
   })
   const [isEditingSaving, setIsEditingSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
@@ -85,7 +86,8 @@ export default function ManageUsersPage() {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
-      role: user.role
+      role: user.role,
+      password: ''
     })
     setEditError(null)
   }
@@ -113,7 +115,8 @@ export default function ManageUsersPage() {
           firstName: editFormData.firstName,
           lastName: editFormData.lastName,
           email: editFormData.email,
-          role: editFormData.role
+          role: editFormData.role,
+          ...(editFormData.password.trim() ? { password: editFormData.password } : {})
         })
       })
 
@@ -141,7 +144,7 @@ export default function ManageUsersPage() {
 
   const handleCancelEdit = () => {
     setEditingUserId(null)
-    setEditFormData({ firstName: '', lastName: '', email: '', role: '' })
+    setEditFormData({ firstName: '', lastName: '', email: '', role: '', password: '' })
     setEditError(null)
   }
 
@@ -269,6 +272,16 @@ export default function ManageUsersPage() {
                                 disabled
                                 placeholder="Role (cannot be changed)"
                               />
+                            </div>
+                            <div className="md:col-span-2">
+                              <Label>New Password</Label>
+                              <Input
+                                type="password"
+                                value={editFormData.password}
+                                onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                                placeholder="Leave blank to keep current password"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Only fill this if you want to change the user&apos;s password</p>
                             </div>
                           </div>
 

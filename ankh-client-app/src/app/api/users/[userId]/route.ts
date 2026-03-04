@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
+import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_secret_for_dev_only'
@@ -41,7 +42,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { firstName, lastName, email, role } = body
+    const { firstName, lastName, email, role, password } = body
 
     if (!firstName || !lastName || !email) {
       return NextResponse.json(
@@ -62,15 +63,23 @@ export async function PUT(
       )
     }
 
+    // Build update data
+    const updateData: { firstName: string; lastName: string; email: string; role: 'MANAGER' | 'INSTRUCTOR'; password?: string } = {
+      firstName,
+      lastName,
+      email,
+      role: (role as 'MANAGER' | 'INSTRUCTOR') || userExists.role
+    }
+
+    // Hash and update password if provided
+    if (password && password.trim()) {
+      updateData.password = await bcrypt.hash(password, 12)
+    }
+
     // Update user
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: {
-        firstName,
-        lastName,
-        email,
-        role: role || userExists.role
-      },
+      data: updateData,
       select: {
         id: true,
         firstName: true,
