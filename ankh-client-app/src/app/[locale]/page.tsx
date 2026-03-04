@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Loader2, AlertCircle, Users, Plus, Download, Upload, LogIn, UserPlus, MapPinPlus, Trash2 } from 'lucide-react'
+import { Search, Loader2, AlertCircle, Users, Plus, Download, Upload, LogIn, UserPlus, MapPinPlus, Trash2, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -922,6 +922,16 @@ export default function HomePage() {
                 >
                   <Users className="mr-2 h-4 w-4" />
                   {showAllCustomersDialog ? 'Hide All Customers' : 'View All Customers'}
+                </Button>
+              )}
+              {currentUser?.role === 'MANAGER' && (
+                <Button
+                  variant="outline"
+                  className="px-6"
+                  onClick={() => router.push(`/${locale}/manage-users`)}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  {t('HomePage.manageUsers')}
                 </Button>
               )}
               <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
