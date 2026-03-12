@@ -491,11 +491,17 @@ export default function HomePage() {
       count = countData.count ?? 0;
       setCustomerCount(count);
     }
-    // Fetch paginated customers
-    const customersRes = await fetch(`/api/customers/search?take=20&skip=0`);
+    // Fetch paginated customers (handle backend requirements)
+    let customersRes = await fetch(`/api/customers/search`);
+    if (!customersRes.ok) {
+      // fallback to /api/customers if search fails
+      customersRes = await fetch(`/api/customers`);
+    }
     if (customersRes.ok) {
       const customersData = await customersRes.json();
       setAllCustomers(customersData.customers || []);
+    } else {
+      setAllCustomers([]);
     }
   } catch (error) {
     setCustomerCount(null);
