@@ -1189,11 +1189,7 @@ export default function HomePage() {
                   <CardDescription>View all customers in the system</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex justify-center items-center gap-2 mt-4">
-                    <Button onClick={handlePrevPage} disabled={page === 1}>Prev</Button>
-                    <span>Page {page} of {totalPages}</span>
-                    <Button onClick={handleNextPage} disabled={page === totalPages}>Next</Button>
-                  </div>
+                  {/* Pagination controls removed for cleaner UI */}
                   {/* Shimmer UI for loading state */}
                   {isLoadingCustomers ? (
                     <div className="mt-6">
