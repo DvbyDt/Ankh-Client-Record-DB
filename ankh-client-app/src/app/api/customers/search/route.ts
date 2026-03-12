@@ -5,8 +5,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const name = searchParams.get('name');
-
-    console.log('Received search parameter:', name);
+    const take = parseInt(searchParams.get('take') || '20', 10); // default 20
+    const skip = parseInt(searchParams.get('skip') || '0', 10); // default 0
 
     if (!name) {
       return NextResponse.json(
@@ -15,16 +15,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Search for customers by name (first name, last name, or email)
+    // Build where clause once, using correct Prisma QueryMode type
+    const where = {
+      OR: [
+        { firstName: { contains: name, mode: 'insensitive' as const } },
+        { lastName: { contains: name, mode: 'insensitive' as const } },
+        { email: { contains: name, mode: 'insensitive' as const } }
+      ],
+      deletedAt: null
+    };
+
+    // Get total count for pagination
+    const total = await prisma.customer.count({ where });
+
+    // Search for customers by name (first name, last name, or email) with pagination
     const customers = await prisma.customer.findMany({
-      where: {
-        OR: [
-          { firstName: { contains: name, mode: 'insensitive' } },
-          { lastName: { contains: name, mode: 'insensitive' } },
-          { email: { contains: name, mode: 'insensitive' } }
-        ],
-        deletedAt: null
-      },
+      where,
       select: {
         id: true,
         firstName: true,
@@ -64,28 +70,16 @@ export async function GET(request: NextRequest) {
       orderBy: [
         { firstName: 'asc' },
         { lastName: 'asc' }
-      ]
+      ],
+      take,
+      skip
     });
-
-    console.log('Search results:', customers);
-    
-    // Log lesson counts for debugging
-    customers.forEach((customer) => {
-      console.log(`Customer ${customer.firstName} ${customer.lastName}: ${customer.lessonParticipants.length} lessons`);
-    });
-
-    if (customers.length === 0) {
-      return NextResponse.json({
-        message: 'No customers found',
-        customers: []
-      });
-    }
 
     return NextResponse.json({
-      message: 'Customers found',
-      customers
+      message: customers.length === 0 ? 'No customers found' : 'Customers found',
+      customers,
+      total
     });
-
   } catch (error) {
     console.error('Customer search error:', error);
     return NextResponse.json(

@@ -40,6 +40,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Pagination support
+    const pageParam = searchParams.get('page');
+    const pageSizeParam = searchParams.get('pageSize');
+    const page = pageParam ? parseInt(pageParam, 10) : 1;
+    const pageSize = pageSizeParam ? parseInt(pageSizeParam, 10) : 20;
+    const skip = (page - 1) * pageSize;
+    const take = pageSize;
+
     // Search for users by name (first name, last name, or email)
     const users = await prisma.user.findMany({
       where: {
@@ -59,7 +67,9 @@ export async function GET(request: NextRequest) {
       },
       orderBy: {
         createdAt: 'desc'
-      }
+      },
+      skip,
+      take
     })
 
     return NextResponse.json({ users })

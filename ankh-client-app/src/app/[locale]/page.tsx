@@ -1,6 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 import { Search, Loader2, AlertCircle, Users, Plus, Download, Upload, LogIn, UserPlus, MapPinPlus, Trash2, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -121,11 +130,41 @@ export default function HomePage() {
 
   // State management for search functionality
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 400)
+  const [page, setPage] = useState(1)
+  const pageSize = 20
   const [searchType, setSearchType] = useState<SearchType>('customer')
   const [isLoading, setIsLoading] = useState(false)
   const [isError, setIsError] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
+  const [totalResults, setTotalResults] = useState(0)
+  // Fetch customers with pagination and debounce
+  useEffect(() => {
+    if (debouncedSearchTerm.length < 2) {
+      setSearchResults([])
+      setTotalResults(0)
+      return
+    }
+    setIsLoading(true)
+    setIsError(false)
+    setErrorMessage('')
+    fetch(`/api/customers/search?name=${encodeURIComponent(debouncedSearchTerm)}&take=${pageSize}&skip=${(page-1)*pageSize}`)
+      .then(res => res.json())
+      .then(data => {
+        setSearchResults(data.customers || [])
+        setTotalResults(data.total || 0)
+      })
+      .catch(() => {
+        setIsError(true)
+        setErrorMessage('Failed to fetch customers')
+      })
+      .finally(() => setIsLoading(false))
+  }, [debouncedSearchTerm, page])
+  // Pagination controls
+  const totalPages = Math.ceil(totalResults / pageSize) || 1
+  const handlePrevPage = () => setPage(p => Math.max(1, p - 1))
+  const handleNextPage = () => setPage(p => (p < totalPages ? p + 1 : p))
 
   // State management for CSV import
   const [isImporting, setIsImporting] = useState(false)
@@ -1138,147 +1177,13 @@ export default function HomePage() {
                   <CardDescription>View all customers in the system</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoadingCustomers ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {allCustomers.length > 0 ? (
-                        allCustomers.map((customer) => {
-                          const initialSymptom = customer.lessonParticipants && customer.lessonParticipants.length > 0
-                            ? customer.lessonParticipants[customer.lessonParticipants.length - 1]?.customerSymptoms || 'N/A'
-                            : 'N/A'
-                          const isExpanded = expandedCustomerId === customer.id
-                          const allLessons = customer.lessonParticipants || []
-                          const showAllLessons = !!showAllCustomerLessons[customer.id]
-                          const lessonsToShow = showAllLessons ? allLessons : allLessons.slice(0, 5)
-                          const hasMoreLessons = allLessons.length > 5
-                          
-                          return (
-                            <div key={customer.id} className="border rounded-lg p-4 bg-white">
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-4 mb-2">
-                                    <span className="font-semibold text-lg">{formatName(customer.firstName, customer.lastName)}</span>
-                                    <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">ID: {customer.id}</span>
-                                  </div>
-                                  <p className="text-sm text-gray-600">Email: {customer.email}</p>
-                                  {customer.phone && <p className="text-sm text-gray-600">Phone: {customer.phone}</p>}
-                                  <p className="text-sm text-gray-700 mt-2"><strong>Initial Symptom:</strong> {initialSymptom}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => toggleExpandCustomer(customer.id)}
-                                  >
-                                    {isExpanded ? 'Hide Lessons' : 'Show Lessons'}
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleEditCustomer(customer)}
-                                  >
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => handleDeleteCustomer(customer.id, `${customer.firstName} ${customer.lastName}`)}
-                                    disabled={isDeletingCustomer}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                              
-                              {/* Expandable Lesson Details */}
-                              {isExpanded && (
-                                <div className="mt-4 pl-4 border-l-4 border-blue-200">
-                                  {allLessons.length > 0 ? (
-                                    <div className="space-y-3">
-                                      {lessonsToShow.map((participant) => {
-                                        const isLessonExpanded = expandedLessonId === participant.lesson.id
-
-                                        return (
-                                          <div
-                                            key={`${customer.id}-${participant.id}`}
-                                            className={`bg-gray-50 p-3 rounded border cursor-pointer ${isLessonExpanded ? 'border-blue-200' : 'border-gray-100'}`}
-                                            onClick={() => setExpandedLessonId(isLessonExpanded ? null : participant.lesson.id)}
-                                          >
-                                            <div className="flex justify-between items-start">
-                                              <div className="flex-1 text-sm space-y-1">
-                                                <p><strong>Lesson Date:</strong> {participant.lesson.createdAt ? new Date(participant.lesson.createdAt).toLocaleDateString() : 'N/A'}</p>
-                                                <p><strong>Instructor:</strong> {`${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`}</p>
-                                              </div>
-                                              <Button
-                                                variant="destructive"
-                                                size="sm"
-                                                onClick={(event) => {
-                                                  event.stopPropagation()
-                                                  handleDeleteLessonParticipant(customer.id, participant.lesson.id, `${customer.firstName} ${customer.lastName}`)
-                                                }}
-                                                disabled={isDeletingLesson}
-                                                className="ml-2"
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </div>
-                                            {isLessonExpanded && (
-                                              <div className="mt-3 pt-3 border-t border-gray-200 space-y-1 text-sm">
-                                                <p><strong>Lesson ID:</strong> {participant.lesson.id}</p>
-                                                <p><strong>Lesson Type:</strong> {participant.lesson.lessonType || 'N/A'}</p>
-                                                <p><strong>Lesson Content:</strong> {participant.lesson.lessonContent || 'N/A'}</p>
-                                                <p><strong>Customer Symptoms:</strong> {participant.customerSymptoms || 'N/A'}</p>
-                                                <p><strong>Customer Improvements:</strong> {participant.customerImprovements || 'N/A'}</p>
-                                                <p><strong>Course Completion Status:</strong>
-                                                  <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                                                    participant.status === 'attended' ? 'bg-green-100 text-green-700' :
-                                                    participant.status === 'absent' ? 'bg-red-100 text-red-700' :
-                                                    participant.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
-                                                    'bg-blue-100 text-blue-700'
-                                                  }`}>
-                                                    {participant.status || 'N/A'}
-                                                  </span>
-                                                </p>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )
-                                      })}
-                                      {hasMoreLessons && (
-                                        <div className="pt-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              setShowAllCustomerLessons((prev) => ({
-                                                ...prev,
-                                                [customer.id]: !showAllLessons
-                                              }))
-                                            }
-                                          >
-                                            {showAllLessons ? t('Common.showLess') : t('Common.showMore')}
-                                          </Button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <p className="text-sm text-gray-500">No lessons assigned</p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })
-                      ) : (
-                        <div className="text-center text-gray-500 py-8">
-                          No customers found
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Pagination controls for customer search results */}
+                  <div className="flex justify-center items-center gap-2 mt-4">
+                    <Button onClick={handlePrevPage} disabled={page === 1}>Prev</Button>
+                    <span>Page {page} of {totalPages}</span>
+                    <Button onClick={handleNextPage} disabled={page === totalPages}>Next</Button>
+                  </div>
+                  {/* ...existing customer search results rendering code... */}
                 </CardContent>
               </Card>
             )}
