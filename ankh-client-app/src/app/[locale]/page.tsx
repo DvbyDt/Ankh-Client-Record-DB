@@ -1189,65 +1189,99 @@ export default function HomePage() {
                   <CardDescription>View all customers in the system</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {/* Fast customer table rendering */}
                   <div className="flex justify-center items-center gap-2 mt-4">
                     <Button onClick={handlePrevPage} disabled={page === 1}>Prev</Button>
                     <span>Page {page} of {totalPages}</span>
                     <Button onClick={handleNextPage} disabled={page === totalPages}>Next</Button>
                   </div>
-                  <div className="overflow-x-auto mt-6">
-                    <Table className="table-fixed w-full">
-                      <TableHeader>
-                        <TableHead className="w-[20%] px-4 py-3 font-semibold">Name</TableHead>
-                        <TableHead className="w-[20%] px-4 py-3 font-semibold">Email</TableHead>
-                        <TableHead className="w-[15%] px-4 py-3 font-semibold">Phone</TableHead>
-                        <TableHead className="w-[15%] px-4 py-3 font-semibold">Created At</TableHead>
-                        <TableHead className="w-[15%] px-4 py-3 font-semibold text-center">Action</TableHead>
-                      </TableHeader>
-                      <TableBody>
-                        {allCustomers.length > 0 ? (
-                          allCustomers.map((customer) => (
-                            <TableRow key={customer.id}>
-                              <TableCell className="w-[20%] px-4 py-3">
-                                <button
-                                  onClick={() => handleViewCustomerDetails(customer.id)}
-                                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                                >
-                                  {formatName(customer.firstName, customer.lastName)}
-                                </button>
-                              </TableCell>
-                              <TableCell className="w-[20%] px-4 py-3 break-all">{customer.email}</TableCell>
-                              <TableCell className="w-[15%] px-4 py-3">{customer.phone || 'N/A'}</TableCell>
-                              <TableCell className="w-[15%] px-4 py-3">{customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
-                              <TableCell className="w-[15%] px-4 py-3 text-center">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEditCustomer(customer)}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleDeleteCustomer(customer.id, `${customer.firstName} ${customer.lastName}`)}
-                                  disabled={isDeletingCustomer}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                  {/* Shimmer UI for loading state */}
+                  {isLoadingCustomers ? (
+                    <div className="mt-6">
+                      {[...Array(8)].map((_, idx) => (
+                        <div key={idx} className="flex items-center space-x-4 py-4 border-b last:border-none">
+                          <div className="h-5 w-36 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
+                          <div className="h-5 w-48 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
+                          <div className="h-5 w-28 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
+                          <div className="h-5 w-32 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
+                          <div className="h-8 w-28 rounded-xl bg-gradient-to-r from-gray-300 via-gray-400 to-gray-300 shimmer" />
+                        </div>
+                      ))}
+                      <style jsx>{`
+                        .shimmer {
+                          position: relative;
+                          overflow: hidden;
+                        }
+                        .shimmer::before {
+                          content: '';
+                          position: absolute;
+                          top: 0;
+                          left: -150px;
+                          height: 100%;
+                          width: 150px;
+                          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+                          animation: shimmerMove 1.2s infinite;
+                        }
+                        @keyframes shimmerMove {
+                          0% { left: -150px; }
+                          100% { left: 100%; }
+                        }
+                      `}</style>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto mt-6">
+                      <Table className="table-fixed w-full">
+                        <TableHeader>
+                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Name</TableHead>
+                          <TableHead className="w-[20%] px-4 py-3 font-semibold">Email</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Phone</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold">Created At</TableHead>
+                          <TableHead className="w-[15%] px-4 py-3 font-semibold text-center">Action</TableHead>
+                        </TableHeader>
+                        <TableBody>
+                          {allCustomers.length > 0 ? (
+                            allCustomers.map((customer) => (
+                              <TableRow key={customer.id}>
+                                <TableCell className="w-[20%] px-4 py-3">
+                                  <button
+                                    onClick={() => handleViewCustomerDetails(customer.id)}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                  >
+                                    {formatName(customer.firstName, customer.lastName)}
+                                  </button>
+                                </TableCell>
+                                <TableCell className="w-[20%] px-4 py-3 break-all">{customer.email}</TableCell>
+                                <TableCell className="w-[15%] px-4 py-3">{customer.phone || 'N/A'}</TableCell>
+                                <TableCell className="w-[15%] px-4 py-3">{customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
+                                <TableCell className="w-[15%] px-4 py-3 text-center">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditCustomer(customer)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteCustomer(customer.id, `${customer.firstName} ${customer.lastName}`)}
+                                    disabled={isDeletingCustomer}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                                No customers found
                               </TableCell>
                             </TableRow>
-                          ))
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                              No customers found
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
