@@ -279,7 +279,7 @@ export default function HomePage() {
             setSearchResults(searchResults.filter(r => r.id !== customerId));
             setAllCustomers(prev => prev.filter(customer => customer.id !== customerId))
             setSelectedCustomerInfo(prev => (prev?.id === customerId ? null : prev))
-            fetchCustomerCount()
+            fetchCustomerCountAndData()
           } else {
             const errorData = await response.json();
             setToastMessage(errorData.error || 'Failed to delete customer.');
@@ -359,12 +359,12 @@ export default function HomePage() {
 
   // Load initial data
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchInstructors()
-      fetchLocations()
-      fetchCustomerCount()
-    }
-  }, [isLoggedIn])
+  if (isLoggedIn) {
+    fetchInstructors();
+    fetchLocations();
+    fetchCustomerCountAndData();
+  }
+  }, [isLoggedIn]);
 
   // Fetch instructors for dropdown
   const fetchInstructors = async () => {
@@ -481,17 +481,27 @@ export default function HomePage() {
   };
 
   // Fetch customer count for system status
-  const fetchCustomerCount = async () => {
-    try {
-      const response = await fetch('/api/customers?countOnly=true');
-      if (response.ok) {
-        const data = await response.json();
-        setCustomerCount(data.count ?? 0);
-      }
-    } catch (error) {
-      setCustomerCount(null);
+  const fetchCustomerCountAndData = async () => {
+  try {
+    // Fetch count
+    const countRes = await fetch('/api/customers?countOnly=true');
+    let count = 0;
+    if (countRes.ok) {
+      const countData = await countRes.json();
+      count = countData.count ?? 0;
+      setCustomerCount(count);
     }
-  };
+    // Fetch paginated customers
+    const customersRes = await fetch(`/api/customers/search?take=20&skip=0`);
+    if (customersRes.ok) {
+      const customersData = await customersRes.json();
+      setAllCustomers(customersData.customers || []);
+    }
+  } catch (error) {
+    setCustomerCount(null);
+    setAllCustomers([]);
+  }
+};
 
   // Fetch selected customer details with records
   const handleViewCustomerDetails = async (customerId: string) => {
