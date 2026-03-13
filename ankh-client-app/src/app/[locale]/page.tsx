@@ -1,23 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Loader2, AlertCircle, Users, Plus, Download, Upload, LogIn, UserPlus, MapPinPlus, Trash2, Settings } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Label } from '@/components/ui/label'
+import {
+  Search, Loader2, AlertCircle, Users, Plus, Download,
+  Upload, LogIn, UserPlus, MapPin, Trash2, Settings,
+  ChevronDown, ChevronUp, X, Eye, Edit3, BookOpen,
+  Activity, LogOut
+} from 'lucide-react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import Cookies from 'js-cookie'
 import React from 'react'
 
-// ---------------------------------------------------------------------------
-// Debounce hook
-// ---------------------------------------------------------------------------
+// ─── Debounce hook ───────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value)
   useEffect(() => {
@@ -27,1375 +23,790 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue
 }
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-type SearchType = 'customer' | 'instructor' | 'location'
+// ─── Types ────────────────────────────────────────────────────────────────────
 type UserRole = 'MANAGER' | 'INSTRUCTOR'
 
 interface User {
-  id: string
-  username: string
-  role: UserRole
-  firstName: string
-  lastName: string
-  email: string
-  createdAt?: string
+  id: string; username: string; role: UserRole
+  firstName: string; lastName: string; email: string; createdAt?: string
 }
-
-interface Location {
-  id: string
-  name: string
-}
-
-interface Customer {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  phone?: string
-  createdAt?: string
-  deletedAt?: string | null
-  lessonParticipants?: CustomerLessonParticipant[]
-}
-
 interface CustomerLessonParticipant {
   id: string
   lesson: {
-    id: string
-    lessonType?: string
-    lessonContent?: string
-    createdAt?: string
-    instructor: {
-      firstName: string
-      lastName: string
-    }
+    id: string; lessonType?: string; lessonContent?: string; createdAt?: string
+    instructor: { firstName: string; lastName: string }
     location?: { name: string }
   }
-  customerSymptoms?: string
-  customerImprovements?: string
-  status?: string
+  customerSymptoms?: string; customerImprovements?: string; status?: string
+}
+interface Customer {
+  id: string; firstName: string; lastName: string; email: string
+  phone?: string; createdAt?: string; deletedAt?: string | null
+  lessonParticipants?: CustomerLessonParticipant[]
 }
 
-interface LessonFormData {
-  lessonDate: string
-  instructorId: string
-  locationId: string
-  lessonType: 'Group' | 'Individual'
-  lessonContent: string
-  customers: CustomerFormData[]
+// ─── Tiny UI primitives ───────────────────────────────────────────────────────
+
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t) }, [onClose])
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl border border-gray-700" style={{ animation: 'slideUp .25s ease-out' }}>
+      <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+      <span className="text-sm font-medium">{message}</span>
+      <button onClick={onClose} className="ml-2 text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+    </div>
+  )
 }
 
-interface CustomerFormData {
-  id?: string
-  firstName: string
-  lastName: string
-  email: string
-  phone?: string
-  symptoms: string
-  improvements: string
+function Overlay({ onClick }: { onClick: () => void }) {
+  return <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={onClick} />
 }
 
-interface UserFormData {
-  username: string
-  password: string
-  role: UserRole
-  firstName: string
-  lastName: string
-  email: string
-}
-
-// ---------------------------------------------------------------------------
-// Toast component
-// ---------------------------------------------------------------------------
-const Toast = ({ message, onClose }: { message: string; onClose: () => void }) => (
-  <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50">
-    <span>{message}</span>
-    <button className="ml-4 text-sm underline" onClick={onClose}>Close</button>
-  </div>
-)
-
-// ---------------------------------------------------------------------------
-// Shimmer rows
-// ---------------------------------------------------------------------------
-const ShimmerRows = ({ count = 8 }: { count?: number }) => (
-  <div className="mt-6">
-    {[...Array(count)].map((_, idx) => (
-      <div key={idx} className="flex items-center space-x-4 py-4 border-b last:border-none">
-        <div className="h-5 w-36 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
-        <div className="h-5 w-48 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
-        <div className="h-5 w-28 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
-        <div className="h-5 w-32 rounded-lg bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 shimmer" />
-        <div className="h-8 w-28 rounded-xl bg-gradient-to-r from-gray-300 via-gray-400 to-gray-300 shimmer" />
+function ModalShell({ open, onClose, title, subtitle, wide, children }: {
+  open: boolean; onClose: () => void; title: string; subtitle?: string; wide?: boolean; children: React.ReactNode
+}) {
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+  if (!open) return null
+  return (
+    <>
+      <Overlay onClick={onClose} />
+      <div className={`fixed inset-0 z-50 flex items-center justify-center p-4`}>
+        <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] flex flex-col overflow-hidden`} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+              {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="overflow-y-auto flex-1 px-6 py-5">{children}</div>
+        </div>
       </div>
-    ))}
-    <style jsx>{`
-      .shimmer { position: relative; overflow: hidden; }
-      .shimmer::before {
-        content: '';
-        position: absolute;
-        top: 0; left: -150px;
-        height: 100%; width: 150px;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
-        animation: shimmerMove 1.2s infinite;
-      }
-      @keyframes shimmerMove { 0% { left: -150px; } 100% { left: 100%; } }
-    `}</style>
-  </div>
-)
+    </>
+  )
+}
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
+function ConfirmDialog({ open, title, message, onConfirm, onCancel }: {
+  open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void
+}) {
+  if (!open) return null
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]" />
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-start gap-4 mb-5">
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">{message}</p>
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Cancel</button>
+            <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors">Delete</button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>
+      <input {...props} className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all" />
+    </div>
+  )
+}
+
+function FieldSelect({ label, children, ...props }: { label: string; children: React.ReactNode } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>
+      <select {...props} className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all">{children}</select>
+    </div>
+  )
+}
+
+function Badge({ children, variant = 'gray' }: { children: React.ReactNode; variant?: 'gray' | 'blue' | 'green' | 'red' | 'amber' }) {
+  const v = { gray: 'bg-gray-100 text-gray-600', blue: 'bg-blue-50 text-blue-700', green: 'bg-emerald-50 text-emerald-700', red: 'bg-red-50 text-red-600', amber: 'bg-amber-50 text-amber-700' }
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${v[variant]}`}>{children}</span>
+}
+
+function Avatar({ name, color = 'gray' }: { name: string; color?: 'gray' | 'green' | 'violet' }) {
+  const initials = name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
+  const colors = {
+    gray: 'from-gray-200 to-gray-300 text-gray-700',
+    green: 'from-emerald-100 to-teal-200 text-emerald-800',
+    violet: 'from-violet-100 to-purple-200 text-violet-800'
+  }
+  return <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${colors[color]} flex items-center justify-center text-xs font-semibold flex-shrink-0`}>{initials}</div>
+}
+
+function ShimmerRow() {
+  return (
+    <div className="flex items-center gap-4 px-6 py-4 border-b border-gray-50">
+      <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+      <div className="flex-1 space-y-2">
+        <div className="h-3.5 w-36 bg-gray-100 rounded-full animate-pulse" />
+        <div className="h-3 w-52 bg-gray-50 rounded-full animate-pulse" />
+      </div>
+      <div className="h-3 w-24 bg-gray-100 rounded-full animate-pulse" />
+      <div className="h-6 w-16 bg-gray-100 rounded-lg animate-pulse" />
+    </div>
+  )
+}
+
+function Btn({ children, variant = 'primary', size = 'md', className = '', ...props }: {
+  children: React.ReactNode; variant?: 'primary' | 'secondary' | 'danger'; size?: 'sm' | 'md'; className?: string
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const base = 'inline-flex items-center justify-center gap-2 font-medium rounded-xl transition-colors disabled:opacity-50'
+  const sizes = { sm: 'px-3 py-1.5 text-xs', md: 'px-4 py-2.5 text-sm' }
+  const variants = { primary: 'bg-gray-900 text-white hover:bg-gray-800', secondary: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300', danger: 'bg-red-50 text-red-600 hover:bg-red-100' }
+  return <button {...props} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{children}</button>
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Page
+// ─────────────────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const router = useRouter()
   const pathname = usePathname()
   const t = useTranslations()
   const locale = pathname.split('/')[1] || 'en'
+  const formatName = (f: string, l: string) => locale === 'ko' ? `${l} ${f}` : `${f} ${l}`
 
-  const formatName = (firstName: string, lastName: string): string =>
-    locale === 'ko' ? `${lastName} ${firstName}` : `${firstName} ${lastName}`
-
-  // --- Auth state ---
+  // ── Auth ──
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [showLoginDialog, setShowLoginDialog] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
   const [loginForm, setLoginForm] = useState({ username: '', password: '' })
-  const [errorMessage, setErrorMessage] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
 
-  // --- Search state ---
+  // ── Search ──
   const [searchTerm, setSearchTerm] = useState('')
-  const debouncedSearchTerm = useDebounce(searchTerm, 400)
-  const [page, setPage] = useState(1)
-  const pageSize = 20
-  const [searchType] = useState<SearchType>('customer')
-  const [isLoading, setIsLoading] = useState(false)
-  const [isError, setIsError] = useState(false)
-  const [errorMessageSearch, setErrorMessageSearch] = useState('')
-  const [searchResults, setSearchResults] = useState<Customer[]>([])
-  const [totalResults, setTotalResults] = useState(0)
-  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null)
+  const debounced = useDebounce(searchTerm, 400)
+  const [searchPage, setSearchPage] = useState(1)
+  const PAGE = 20
+  const [sLoading, setSLoading] = useState(false)
+  const [sError, setSError] = useState(false)
+  const [results, setResults] = useState<Customer[]>([])
+  const [total, setTotal] = useState(0)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const totalPages = Math.ceil(total / PAGE) || 1
 
-  // --- Customer count / system status ---
+  // ── Counts ──
   const [customerCount, setCustomerCount] = useState<number | null>(null)
 
-  // --- View All Customers panel state ---
-  const [showAllCustomersDialog, setShowAllCustomersDialog] = useState(false)
+  // ── Panels ──
+  const [showAllCustomers, setShowAllCustomers] = useState(false)
   const [allCustomers, setAllCustomers] = useState<Customer[]>([])
-  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false)
-  const [allCustomersPage, setAllCustomersPage] = useState(1)
-  const [allCustomersTotalPages, setAllCustomersTotalPages] = useState(1)
-  const ALL_CUSTOMERS_PAGE_SIZE = 50
-
-  // --- Customer detail modal state ---
-  const [selectedCustomerInfo, setSelectedCustomerInfo] = useState<Customer | null>(null)
-  const [isLoadingCustomerDetails, setIsLoadingCustomerDetails] = useState(false)
-
-  // --- Edit customer state ---
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
-  const [editCustomerForm, setEditCustomerForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
-  const [isSavingCustomerEdit, setIsSavingCustomerEdit] = useState(false)
-  const [editCustomerError, setEditCustomerError] = useState<string | null>(null)
-
-  // --- Delete state ---
-  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false)
-  const [isDeletingLesson, setIsDeletingLesson] = useState(false)
-
-  // --- Confirm dialog ---
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [confirmDialogData, setConfirmDialogData] = useState<{
-    title: string; message: string; onConfirm: () => void
-  } | null>(null)
-
-  // --- Toast ---
-  const [toastMessage, setToastMessage] = useState('')
-
-  // --- Instructors / Locations ---
-  const [instructors, setInstructors] = useState<User[]>([])
-  const [locations, setLocations] = useState<Location[]>([])
-
-  // --- Add user dialog ---
-  const [showAddUserDialog, setShowAddUserDialog] = useState(false)
-  const [userForm, setUserForm] = useState<UserFormData>({
-    username: '', password: '', role: 'INSTRUCTOR',
-    firstName: '', lastName: '', email: ''
-  })
-  const [isAddingUser, setIsAddingUser] = useState(false)
-  const [addUserError, setAddUserError] = useState('')
-
-  // --- View all users ---
-  const [showAllUsersDialog, setShowAllUsersDialog] = useState(false)
+  const [acLoading, setAcLoading] = useState(false)
+  const [acPage, setAcPage] = useState(1)
+  const [acTotalPages, setAcTotalPages] = useState(1)
+  const [showAllUsers, setShowAllUsers] = useState(false)
   const [allUsers, setAllUsers] = useState<User[]>([])
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
-  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'MANAGER' | 'INSTRUCTOR'>('ALL')
-  const [isDeletingUser, setIsDeletingUser] = useState(false)
-  const [selectedUserInfo, setSelectedUserInfo] = useState<User | null>(null)
+  const [auLoading, setAuLoading] = useState(false)
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'MANAGER' | 'INSTRUCTOR'>('ALL')
 
-  // --- Add location ---
-  const [showAddLocationDialog, setShowAddLocationDialog] = useState(false)
-  const [locationForm, setLocationForm] = useState({ name: '' })
-  const [isAddingLocation, setIsAddingLocation] = useState(false)
-  const [addLocationError, setAddLocationError] = useState('')
-
-  // --- Lesson form ---
-  const [lessonForm, setLessonForm] = useState<LessonFormData>({
-    lessonDate: '', instructorId: '', locationId: '',
-    lessonType: 'Group', lessonContent: '',
-    customers: [{ firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
-  })
-  const [isCreatingLesson, setIsCreatingLesson] = useState(false)
-  const [lessonError, setLessonError] = useState('')
-  const [lessonSuccess, setLessonSuccess] = useState('')
-
-  // --- File upload ---
-  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  // ── Modals ──
+  const [detailModal, setDetailModal] = useState<Customer | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [editModal, setEditModal] = useState<Customer | null>(null)
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [userModal, setUserModal] = useState<User | null>(null)
+  const [addUserModal, setAddUserModal] = useState(false)
+  const [addUserForm, setAddUserForm] = useState({ username: '', password: '', role: 'INSTRUCTOR' as UserRole, firstName: '', lastName: '', email: '' })
+  const [addUserLoading, setAddUserLoading] = useState(false)
+  const [addUserError, setAddUserError] = useState('')
+  const [addLocModal, setAddLocModal] = useState(false)
+  const [locName, setLocName] = useState('')
+  const [locLoading, setLocLoading] = useState(false)
+  const [locError, setLocError] = useState('')
+  const [uploadModal, setUploadModal] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadMessage, setUploadMessage] = useState('')
-  const [uploadError, setUploadError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState('')
+  const [uploadErr, setUploadErr] = useState('')
 
-  // -------------------------------------------------------------------------
-  // Restore auth from cookies on mount (zero extra API calls)
-  // -------------------------------------------------------------------------
+  // ── Confirm / Toast ──
+  const [confirm, setConfirm] = useState<{ title: string; message: string; fn: () => void } | null>(null)
+  const [toast, setToast] = useState('')
+  const flash = (m: string) => setToast(m)
+
+  // ── Init ──
   useEffect(() => {
     const token = Cookies.get('jwt-token')
     if (token) {
-      const userData = Cookies.get('current-user-data')
-      if (userData) {
-        setCurrentUser(JSON.parse(userData))
-        setIsLoggedIn(true)
-      }
+      const u = Cookies.get('current-user-data')
+      if (u) { setCurrentUser(JSON.parse(u)); setIsLoggedIn(true) }
     }
   }, [])
+  useEffect(() => { if (isLoggedIn) fetchCount() }, [isLoggedIn])
 
-  // -------------------------------------------------------------------------
-  // On login: load instructors, locations, and customer count in parallel.
-  // We do NOT load all customers here — that only happens when the panel opens.
-  // -------------------------------------------------------------------------
+  // ── Search effect ──
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchInstructors()
-      fetchLocations()
-      fetchCustomerCount()
-    }
-  }, [isLoggedIn])
+    if (debounced.length < 2) { setResults([]); setTotal(0); return }
+    setSLoading(true); setSError(false)
+    fetch(`/api/customers/search?name=${encodeURIComponent(debounced)}&take=${PAGE}&skip=${(searchPage - 1) * PAGE}`)
+      .then(r => r.json())
+      .then(d => { setResults(d.customers || []); setTotal(d.total || 0) })
+      .catch(() => setSError(true))
+      .finally(() => setSLoading(false))
+  }, [debounced, searchPage])
 
-  // -------------------------------------------------------------------------
-  // Fetch customer count only (cheap single-row query)
-  // -------------------------------------------------------------------------
-  const fetchCustomerCount = async () => {
+  // ── Fetchers ──
+  const fetchCount = async () => {
+    try { const r = await fetch('/api/customers?limit=1'); if (r.ok) { const d = await r.json(); setCustomerCount(d.total ?? null) } } catch {}
+  }
+  const fetchAllCustomers = async (p = 1) => {
+    setAcLoading(true)
     try {
-      const res = await fetch('/api/customers?limit=1')
-      if (res.ok) {
-        const data = await res.json()
-        setCustomerCount(data.total ?? null)
-      }
-    } catch {
-      // Non-critical — silently ignore
-    }
+      const r = await fetch(`/api/customers?page=${p}&limit=50`)
+      if (r.ok) { const d = await r.json(); setAllCustomers(d.customers || []); setAcTotalPages(d.totalPages || 1); setAcPage(p); if (d.total != null) setCustomerCount(d.total) }
+    } finally { setAcLoading(false) }
   }
-
-  // -------------------------------------------------------------------------
-  // Search with debounce + pagination
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    if (debouncedSearchTerm.length < 2) {
-      setSearchResults([])
-      setTotalResults(0)
-      return
-    }
-    setIsLoading(true)
-    setIsError(false)
-    setErrorMessageSearch('')
-    fetch(
-      `/api/customers/search?name=${encodeURIComponent(debouncedSearchTerm)}&take=${pageSize}&skip=${(page - 1) * pageSize}`
-    )
-      .then(res => res.json())
-      .then(data => {
-        setSearchResults(data.customers || [])
-        setTotalResults(data.total || 0)
-      })
-      .catch(() => {
-        setIsError(true)
-        setErrorMessageSearch('Failed to fetch customers')
-      })
-      .finally(() => setIsLoading(false))
-  }, [debouncedSearchTerm, page])
-
-  const totalPages = Math.ceil(totalResults / pageSize) || 1
-  const handlePrevPage = () => setPage(p => Math.max(1, p - 1))
-  const handleNextPage = () => setPage(p => (p < totalPages ? p + 1 : p))
-
-  // -------------------------------------------------------------------------
-  // Re-run search (e.g. after a delete)
-  // -------------------------------------------------------------------------
-  const handleSearch = () => {
-    if (debouncedSearchTerm.length < 2) return
-    setIsLoading(true)
-    fetch(
-      `/api/customers/search?name=${encodeURIComponent(debouncedSearchTerm)}&take=${pageSize}&skip=${(page - 1) * pageSize}`
-    )
-      .then(res => res.json())
-      .then(data => {
-        setSearchResults(data.customers || [])
-        setTotalResults(data.total || 0)
-      })
-      .catch(() => setIsError(true))
-      .finally(() => setIsLoading(false))
-  }
-
-  const toggleExpandCustomer = (id: string) =>
-    setExpandedCustomerId(prev => (prev === id ? null : id))
-
-  // -------------------------------------------------------------------------
-  // Instructors + Locations
-  // -------------------------------------------------------------------------
-  const fetchInstructors = async () => {
-    const token = Cookies.get('jwt-token')
-    if (!token) return
-    try {
-      const res = await fetch('/api/users/instructors', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setInstructors(data.results || [])
-      }
-    } catch (err) {
-      console.error('Error fetching instructors:', err)
-      setInstructors([])
-    }
-  }
-
-  const fetchLocations = async () => {
-    try {
-      const res = await fetch('/api/locations')
-      if (res.ok) {
-        const data = await res.json()
-        setLocations(data.locations || [])
-      }
-    } catch (err) {
-      console.error('Error fetching locations:', err)
-      setLocations([])
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // View All Customers — lazy-load, only fires when panel is opened.
-  // Uses pagination so we never dump 1000 rows into the browser at once.
-  // -------------------------------------------------------------------------
-  const fetchAllCustomers = async (pageNum = 1) => {
-    setIsLoadingCustomers(true)
-    try {
-      const res = await fetch(`/api/customers?page=${pageNum}&limit=${ALL_CUSTOMERS_PAGE_SIZE}`)
-      if (res.ok) {
-        const data = await res.json()
-        setAllCustomers(data.customers || [])
-        setAllCustomersTotalPages(data.totalPages || 1)
-        setAllCustomersPage(pageNum)
-        // Sync the header count too
-        if (data.total != null) setCustomerCount(data.total)
-      } else {
-        setToastMessage('Failed to fetch customers')
-      }
-    } catch {
-      setToastMessage('Error fetching customers')
-    } finally {
-      setIsLoadingCustomers(false)
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // View All Users — lazy-load same pattern
-  // -------------------------------------------------------------------------
   const fetchAllUsers = async () => {
-    setIsLoadingUsers(true)
-    try {
-      const res = await fetch('/api/users')
-      if (res.ok) {
-        const data = await res.json()
-        setAllUsers(data.users || [])
-      } else {
-        setToastMessage('Failed to fetch users')
-      }
-    } catch {
-      setToastMessage('Error fetching users')
-    } finally {
-      setIsLoadingUsers(false)
-    }
+    setAuLoading(true)
+    try { const r = await fetch('/api/users'); if (r.ok) { const d = await r.json(); setAllUsers(d.users || []) } } finally { setAuLoading(false) }
+  }
+  const fetchDetail = async (id: string) => {
+    setDetailLoading(true)
+    const preview = allCustomers.find(c => c.id === id) || results.find(c => c.id === id) || null
+    setDetailModal(preview)
+    try { const r = await fetch(`/api/customers/${id}`); if (r.ok) { const d = await r.json(); setDetailModal(d.customer) } } finally { setDetailLoading(false) }
   }
 
-  // -------------------------------------------------------------------------
-  // Customer detail — loads full lesson history on-demand
-  // -------------------------------------------------------------------------
-  const handleViewCustomerDetails = async (customerId: string) => {
-    setIsLoadingCustomerDetails(true)
-    // Show a placeholder immediately while the full record loads
-    const preview = allCustomers.find(c => c.id === customerId) ||
-                    searchResults.find(c => c.id === customerId) || null
-    setSelectedCustomerInfo(preview)
-    try {
-      const res = await fetch(`/api/customers/${customerId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setSelectedCustomerInfo(data.customer)
-      }
-    } catch (err) {
-      console.error('Error fetching customer details:', err)
-    } finally {
-      setIsLoadingCustomerDetails(false)
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Delete customer
-  // -------------------------------------------------------------------------
-  const handleDeleteCustomer = (customerId: string, customerName: string) => {
-    setConfirmDialogData({
-      title: 'Delete Customer',
-      message: `Are you sure you want to delete "${customerName}"? This will also delete all their lesson records.`,
-      onConfirm: async () => {
-        const token = Cookies.get('jwt-token')
-        if (!token) { setToastMessage('You must be logged in as a manager.'); return }
-        setIsDeletingCustomer(true)
-        try {
-          const res = await fetch(`/api/customers/${customerId}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
-          })
-          if (res.ok) {
-            setToastMessage('Customer deleted successfully!')
-            setSearchResults(prev => prev.filter(r => r.id !== customerId))
-            setAllCustomers(prev => prev.filter(c => c.id !== customerId))
-            setSelectedCustomerInfo(prev => prev?.id === customerId ? null : prev)
-            fetchCustomerCount()
-          } else {
-            const err = await res.json()
-            setToastMessage(err.error || 'Failed to delete customer.')
-          }
-        } catch {
-          setToastMessage('An unexpected error occurred.')
-        } finally {
-          setIsDeletingCustomer(false)
-          setShowConfirmDialog(false)
-        }
-      }
-    })
-    setShowConfirmDialog(true)
-  }
-
-  // -------------------------------------------------------------------------
-  // Delete lesson participant
-  // -------------------------------------------------------------------------
-  const handleDeleteLessonParticipant = (customerId: string, lessonId: string, customerName: string) => {
-    setConfirmDialogData({
-      title: 'Delete Lesson Record',
-      message: `Are you sure you want to delete this lesson record for "${customerName}"?`,
-      onConfirm: async () => {
-        const token = Cookies.get('jwt-token')
-        if (!token) { setToastMessage('You must be logged in as a manager.'); return }
-        setIsDeletingLesson(true)
-        try {
-          const res = await fetch(`/api/lessons/${lessonId}/participants/${customerId}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
-          })
-          if (res.ok) {
-            setToastMessage('Lesson record deleted successfully!')
-            handleSearch()
-          } else {
-            const err = await res.json()
-            setToastMessage(err.error || 'Failed to delete lesson record.')
-          }
-        } catch {
-          setToastMessage('An unexpected error occurred.')
-        } finally {
-          setIsDeletingLesson(false)
-          setShowConfirmDialog(false)
-        }
-      }
-    })
-    setShowConfirmDialog(true)
-  }
-
-  // -------------------------------------------------------------------------
-  // Edit customer
-  // -------------------------------------------------------------------------
-  const handleEditCustomer = (customer: Customer) => {
-    setEditingCustomer(customer)
-    setEditCustomerForm({
-      firstName: customer.firstName,
-      lastName: customer.lastName,
-      email: customer.email,
-      phone: customer.phone || ''
-    })
-    setEditCustomerError(null)
-  }
-
-  const handleSaveCustomerEdit = async () => {
-    if (!editingCustomer) return
-    if (!editCustomerForm.firstName || !editCustomerForm.lastName || !editCustomerForm.email) {
-      setEditCustomerError('First name, last name, and email are required.')
-      return
-    }
-    setIsSavingCustomerEdit(true)
-    setEditCustomerError(null)
-    const token = Cookies.get('jwt-token')
-    try {
-      const res = await fetch(`/api/customers/${editingCustomer.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(editCustomerForm)
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setToastMessage('Customer updated successfully!')
-        setEditingCustomer(null)
-        // Update in-place in both lists
-        const updated = data.customer
-        setAllCustomers(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
-        setSearchResults(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
-        if (selectedCustomerInfo?.id === updated.id) setSelectedCustomerInfo({ ...selectedCustomerInfo, ...updated })
-      } else {
-        const err = await res.json()
-        setEditCustomerError(err.error || 'Failed to update customer.')
-      }
-    } catch {
-      setEditCustomerError('An unexpected error occurred.')
-    } finally {
-      setIsSavingCustomerEdit(false)
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Auth
-  // -------------------------------------------------------------------------
+  // ── Handlers ──
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault(); setLoginLoading(true); setLoginError('')
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm)
-      })
-      if (res.ok) {
-        const data = await res.json()
-        Cookies.set('jwt-token', data.token, { expires: 1 })
-        const userToStore = { firstName: data.user.firstName, lastName: data.user.lastName, role: data.user.role }
-        Cookies.set('current-user-data', JSON.stringify(userToStore), { expires: 7 })
-        setCurrentUser(data.user)
-        setIsLoggedIn(true)
-        setShowLoginDialog(false)
-        setLoginForm({ username: '', password: '' })
-      } else {
-        const err = await res.json()
-        setErrorMessage(err.error)
-      }
-    } catch {
-      setErrorMessage(t('HomePage.loginFailed'))
-    }
+      const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loginForm) })
+      if (r.ok) {
+        const d = await r.json()
+        Cookies.set('jwt-token', d.token, { expires: 1 })
+        Cookies.set('current-user-data', JSON.stringify({ firstName: d.user.firstName, lastName: d.user.lastName, role: d.user.role }), { expires: 7 })
+        setCurrentUser(d.user); setIsLoggedIn(true); setShowLogin(false); setLoginForm({ username: '', password: '' })
+      } else { const d = await r.json(); setLoginError(d.error || t('HomePage.loginFailed')) }
+    } catch { setLoginError(t('HomePage.loginFailed')) } finally { setLoginLoading(false) }
   }
-
   const handleLogout = () => {
-    Cookies.remove('jwt-token')
-    Cookies.remove('current-user-data')
-    setCurrentUser(null)
-    setIsLoggedIn(false)
-    setSearchResults([])
-    setAllCustomers([])
-    setAllUsers([])
+    Cookies.remove('jwt-token'); Cookies.remove('current-user-data')
+    setCurrentUser(null); setIsLoggedIn(false); setResults([]); setAllCustomers([]); setAllUsers([])
   }
-
-  // -------------------------------------------------------------------------
-  // Add user
-  // -------------------------------------------------------------------------
+  const openEdit = (c: Customer) => { setEditModal(c); setEditForm({ firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone || '' }); setEditError('') }
+  const saveEdit = async () => {
+    if (!editModal || !editForm.firstName || !editForm.lastName || !editForm.email) { setEditError('All fields required.'); return }
+    setEditLoading(true); setEditError('')
+    const token = Cookies.get('jwt-token')
+    try {
+      const r = await fetch(`/api/customers/${editModal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(editForm) })
+      if (r.ok) {
+        const { customer: u } = await r.json()
+        setAllCustomers(p => p.map(c => c.id === u.id ? { ...c, ...u } : c))
+        setResults(p => p.map(c => c.id === u.id ? { ...c, ...u } : c))
+        if (detailModal?.id === u.id) setDetailModal(prev => prev ? { ...prev, ...u } : prev)
+        setEditModal(null); flash('Customer updated successfully!')
+      } else { const d = await r.json(); setEditError(d.error || 'Failed to update.') }
+    } catch { setEditError('Unexpected error.') } finally { setEditLoading(false) }
+  }
+  const deleteCustomer = (id: string, name: string) => {
+    setConfirm({ title: 'Delete Customer', message: `Delete "${name}" and all their lesson records? This cannot be undone.`, fn: async () => {
+      const token = Cookies.get('jwt-token')
+      const r = await fetch(`/api/customers/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) { setResults(p => p.filter(c => c.id !== id)); setAllCustomers(p => p.filter(c => c.id !== id)); if (detailModal?.id === id) setDetailModal(null); fetchCount(); flash('Customer deleted.') }
+      else flash('Failed to delete customer.')
+      setConfirm(null)
+    }})
+  }
   const handleAddUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!userForm.username || !userForm.password || !userForm.firstName || !userForm.lastName || !userForm.email) {
-      setAddUserError('All fields are required.')
-      return
-    }
-    setIsAddingUser(true)
-    setAddUserError('')
+    e.preventDefault(); setAddUserLoading(true); setAddUserError('')
     const token = Cookies.get('jwt-token')
     try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(userForm)
-      })
-      if (res.ok) {
-        setToastMessage('User created successfully!')
-        setShowAddUserDialog(false)
-        setUserForm({ username: '', password: '', role: 'INSTRUCTOR', firstName: '', lastName: '', email: '' })
-        if (showAllUsersDialog) fetchAllUsers()
-      } else {
-        const err = await res.json()
-        setAddUserError(err.error || 'Failed to create user.')
-      }
-    } catch {
-      setAddUserError('An unexpected error occurred.')
-    } finally {
-      setIsAddingUser(false)
-    }
+      const r = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(addUserForm) })
+      if (r.ok) { setAddUserModal(false); setAddUserForm({ username: '', password: '', role: 'INSTRUCTOR', firstName: '', lastName: '', email: '' }); flash('User created!'); if (showAllUsers) fetchAllUsers() }
+      else { const d = await r.json(); setAddUserError(d.error || 'Failed.') }
+    } catch { setAddUserError('Unexpected error.') } finally { setAddUserLoading(false) }
   }
-
-  // -------------------------------------------------------------------------
-  // Delete user
-  // -------------------------------------------------------------------------
-  const handleDeleteUser = (userId: string, userName: string) => {
-    setConfirmDialogData({
-      title: 'Delete User',
-      message: `Are you sure you want to delete "${userName}"?`,
-      onConfirm: async () => {
-        const token = Cookies.get('jwt-token')
-        setIsDeletingUser(true)
-        try {
-          const res = await fetch(`/api/users/${userId}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
-          })
-          if (res.ok) {
-            setToastMessage('User deleted successfully!')
-            setAllUsers(prev => prev.filter(u => u.id !== userId))
-          } else {
-            const err = await res.json()
-            setToastMessage(err.error || 'Failed to delete user.')
-          }
-        } catch {
-          setToastMessage('An unexpected error occurred.')
-        } finally {
-          setIsDeletingUser(false)
-          setShowConfirmDialog(false)
-        }
-      }
-    })
-    setShowConfirmDialog(true)
+  const deleteUser = (id: string, name: string) => {
+    setConfirm({ title: 'Delete User', message: `Delete user "${name}"?`, fn: async () => {
+      const token = Cookies.get('jwt-token')
+      const r = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) { setAllUsers(p => p.filter(u => u.id !== id)); flash('User deleted.') }
+      setConfirm(null)
+    }})
   }
-
-  // -------------------------------------------------------------------------
-  // Add location
-  // -------------------------------------------------------------------------
-  const handleCreateLocation = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!locationForm.name.trim()) { setAddLocationError('Location name is required.'); return }
-    setIsAddingLocation(true)
-    setAddLocationError('')
+  const addLocation = async (e: React.FormEvent) => {
+    e.preventDefault(); setLocLoading(true); setLocError('')
     try {
-      const res = await fetch('/api/locations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: locationForm.name.trim() })
-      })
-      if (res.ok) {
-        setToastMessage('Location created successfully!')
-        setShowAddLocationDialog(false)
-        setLocationForm({ name: '' })
-        fetchLocations()
-      } else {
-        const err = await res.json()
-        setAddLocationError(err.error || 'Failed to create location.')
-      }
-    } catch {
-      setAddLocationError('An unexpected error occurred.')
-    } finally {
-      setIsAddingLocation(false)
-    }
+      const r = await fetch('/api/locations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: locName.trim() }) })
+      if (r.ok) { setAddLocModal(false); setLocName(''); flash('Location created!') } else { const d = await r.json(); setLocError(d.error || 'Failed.') }
+    } catch { setLocError('Unexpected error.') } finally { setLocLoading(false) }
   }
-
-  // -------------------------------------------------------------------------
-  // File upload
-  // -------------------------------------------------------------------------
-  const handleFileUpload = async () => {
-    if (!uploadFile) { setUploadError('Please select a file.'); return }
-    setIsUploading(true)
-    setUploadMessage('')
-    setUploadError('')
-    const token = Cookies.get('jwt-token')
-    const formData = new FormData()
-    formData.append('file', uploadFile)
+  const handleUpload = async () => {
+    if (!uploadFile) { setUploadErr('Please select a file.'); return }
+    setUploading(true); setUploadMsg(''); setUploadErr('')
+    const token = Cookies.get('jwt-token'); const fd = new FormData(); fd.append('file', uploadFile)
     try {
-      const res = await fetch('/api/import-csv', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setUploadMessage(data.message || 'File uploaded successfully!')
-        setUploadFile(null)
-        fetchCustomerCount()
-        if (showAllCustomersDialog) fetchAllCustomers(1)
-      } else {
-        setUploadError(data.error || 'Upload failed.')
-      }
-    } catch {
-      setUploadError('An unexpected error occurred during upload.')
-    } finally {
-      setIsUploading(false)
-    }
+      const r = await fetch('/api/import-csv', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
+      const d = await r.json()
+      if (r.ok) { setUploadMsg(d.message || 'Imported!'); setUploadFile(null); fetchCount(); if (showAllCustomers) fetchAllCustomers(1) } else setUploadErr(d.error || 'Upload failed.')
+    } catch { setUploadErr('Unexpected error.') } finally { setUploading(false) }
   }
 
-  // =========================================================================
-  // RENDER
-  // =========================================================================
+  const filteredUsers = allUsers.filter(u => roleFilter === 'ALL' || u.role === roleFilter)
+
+  // ────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Toast */}
-      {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage('')} />}
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+        html, body, * { font-family: 'DM Sans', system-ui, sans-serif; box-sizing: border-box; }
+        @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        .fade-in { animation: fadeIn .2s ease-out; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 99px; }
+      `}</style>
 
-      {/* Confirm dialog */}
-      {showConfirmDialog && confirmDialogData && (
-        <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{confirmDialogData.title}</DialogTitle>
-              <DialogDescription>{confirmDialogData.message}</DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>Cancel</Button>
-              <Button variant="destructive" onClick={confirmDialogData.onConfirm}>Confirm</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      <div className="min-h-screen bg-[#f7f7f5]">
+        {toast && <Toast message={toast} onClose={() => setToast('')} />}
+        <ConfirmDialog open={!!confirm} title={confirm?.title || ''} message={confirm?.message || ''} onConfirm={() => confirm?.fn()} onCancel={() => setConfirm(null)} />
 
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{t('HomePage.title')}</h1>
-              {customerCount !== null && (
-                <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                  {customerCount} {t('HomePage.customers')}
-                </span>
+        {/* ━━━━ HEADER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-40">
+          <div className="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
+                <BookOpen className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="font-semibold text-gray-900 text-[14px] hidden sm:block">{t('Common.appName')}</span>
+              {customerCount !== null && isLoggedIn && (
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{customerCount} {t('HomePage.customers')}</span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <LanguageSwitcher />
               {isLoggedIn ? (
                 <>
-                  <span className="text-sm text-gray-600">
-                    {t('Auth.welcome')}, {currentUser && formatName(currentUser.firstName, currentUser.lastName)} ({currentUser?.role})
-                  </span>
-                  <Button variant="outline" onClick={handleLogout}>{t('Auth.logout')}</Button>
+                  <div className="hidden md:flex items-center gap-2 text-sm">
+                    <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[11px] font-semibold text-gray-700">
+                      {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
+                    </div>
+                    <span className="text-gray-600 font-medium text-[13px]">{currentUser && formatName(currentUser.firstName, currentUser.lastName)}</span>
+                    <Badge variant={currentUser?.role === 'MANAGER' ? 'blue' : 'green'}>{currentUser?.role}</Badge>
+                  </div>
+                  <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                    <LogOut className="w-3.5 h-3.5" /><span className="hidden sm:inline">{t('Auth.logout')}</span>
+                  </button>
                 </>
               ) : (
-                <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
-                  <DialogTrigger asChild>
-                    <Button><LogIn className="mr-2 h-4 w-4" />{t('Auth.login')}</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t('Auth.login')}</DialogTitle>
-                      <DialogDescription>{t('HomePage.loginCredentials')}</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleLogin} className="space-y-4">
-                      <div>
-                        <Label htmlFor="username">{t('Auth.username')}</Label>
-                        <Input id="username" className="my-2" value={loginForm.username}
-                          onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} required />
-                      </div>
-                      <div>
-                        <Label htmlFor="password">{t('Auth.password')}</Label>
-                        <Input id="password" className="my-2" type="password" value={loginForm.password}
-                          onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} required />
-                      </div>
-                      {errorMessage && <p className="text-red-600 text-sm">{errorMessage}</p>}
-                      <Button type="submit" className="w-full">{t('Auth.login')}</Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                <button onClick={() => setShowLogin(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-[13px] font-medium rounded-xl hover:bg-gray-800 transition-colors">
+                  <LogIn className="w-3.5 h-3.5" />{t('Auth.login')}
+                </button>
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!isLoggedIn ? (
-          <Card className="text-center">
-            <CardHeader>
-              <CardTitle>{t('HomePage.welcomeTitle')}</CardTitle>
-              <CardDescription>{t('HomePage.welcomeDesc')}</CardDescription>
-            </CardHeader>
-          </Card>
-        ) : (
-          <>
-            {/* ── Action buttons ── */}
-            <div className="flex flex-wrap justify-center gap-3 mb-8">
-              <Button onClick={() => router.push(`/${locale}/add-record`)} className="px-6">
-                <Plus className="mr-2 h-4 w-4" />{t('HomePage.addNewRecord')}
-              </Button>
+        {/* ━━━━ CONTENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <main className="max-w-6xl mx-auto px-5 py-8">
 
-              <a href="/api/export-csv" download="customer_records.csv" className="inline-block">
-                <Button variant="outline" className="px-6">
-                  <Download className="mr-2 h-4 w-4" />{t('HomePage.exportCSV')}
-                </Button>
-              </a>
-
-              {/* File upload */}
-              <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="px-6">
-                    <Upload className="mr-2 h-4 w-4" />{t('HomePage.importCSV')}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{t('HomePage.importCSV')}</DialogTitle>
-                    <DialogDescription>Upload a CSV or Excel file to import customer records.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input type="file" accept=".csv,.xlsx,.xls"
-                      onChange={e => { setUploadFile(e.target.files?.[0] || null); setUploadError(''); setUploadMessage('') }} />
-                    {uploadError && <p className="text-red-600 text-sm">{uploadError}</p>}
-                    {uploadMessage && <p className="text-green-600 text-sm">{uploadMessage}</p>}
-                    <Button onClick={handleFileUpload} disabled={isUploading || !uploadFile} className="w-full">
-                      {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading...</> : 'Upload'}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              {currentUser?.role === 'MANAGER' && (
-                <>
-                  {/* View All Users */}
-                  <Button variant="outline" className="px-6"
-                    onClick={() => {
-                      const next = !showAllUsersDialog
-                      setShowAllUsersDialog(next)
-                      if (next && allUsers.length === 0) fetchAllUsers()
-                    }}>
-                    <Users className="mr-2 h-4 w-4" />
-                    {showAllUsersDialog ? 'Hide Users' : 'View All Users'}
-                  </Button>
-
-                  {/* View All Customers */}
-                  <Button variant="outline" className="px-6"
-                    onClick={() => {
-                      const next = !showAllCustomersDialog
-                      setShowAllCustomersDialog(next)
-                      // Only fetch on open, and only if we haven't loaded page 1 yet
-                      if (next && allCustomers.length === 0) fetchAllCustomers(1)
-                    }}>
-                    <Users className="mr-2 h-4 w-4" />
-                    {showAllCustomersDialog ? 'Hide Customers' : 'View All Customers'}
-                  </Button>
-
-                  {/* Add User */}
-                  <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="px-6">
-                        <UserPlus className="mr-2 h-4 w-4" />{t('HomePage.addUser')}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>{t('HomePage.addUser')}</DialogTitle>
-                      </DialogHeader>
-                      <form onSubmit={handleAddUser} className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>First Name</Label>
-                            <Input className="mt-1" value={userForm.firstName}
-                              onChange={e => setUserForm({ ...userForm, firstName: e.target.value })} required />
-                          </div>
-                          <div>
-                            <Label>Last Name</Label>
-                            <Input className="mt-1" value={userForm.lastName}
-                              onChange={e => setUserForm({ ...userForm, lastName: e.target.value })} required />
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Email</Label>
-                          <Input className="mt-1" type="email" value={userForm.email}
-                            onChange={e => setUserForm({ ...userForm, email: e.target.value })} required />
-                        </div>
-                        <div>
-                          <Label>Username</Label>
-                          <Input className="mt-1" value={userForm.username}
-                            onChange={e => setUserForm({ ...userForm, username: e.target.value })} required />
-                        </div>
-                        <div>
-                          <Label>Password</Label>
-                          <Input className="mt-1" type="password" value={userForm.password}
-                            onChange={e => setUserForm({ ...userForm, password: e.target.value })} required />
-                        </div>
-                        <div>
-                          <Label>Role</Label>
-                          <Select value={userForm.role} onValueChange={(v: UserRole) => setUserForm({ ...userForm, role: v })}>
-                            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
-                              <SelectItem value="MANAGER">Manager</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {addUserError && <p className="text-red-600 text-sm">{addUserError}</p>}
-                        <Button type="submit" className="w-full" disabled={isAddingUser}>
-                          {isAddingUser ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : 'Create User'}
-                        </Button>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Add Location */}
-                  <Dialog open={showAddLocationDialog} onOpenChange={setShowAddLocationDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="px-6">
-                        <MapPinPlus className="mr-2 h-4 w-4" />{t('HomePage.addLocation')}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>{t('HomePage.addLocation')}</DialogTitle>
-                      </DialogHeader>
-                      <form onSubmit={handleCreateLocation} className="space-y-4">
-                        <div>
-                          <Label>Location Name</Label>
-                          <Input className="mt-1" value={locationForm.name}
-                            onChange={e => setLocationForm({ name: e.target.value })} required />
-                        </div>
-                        {addLocationError && <p className="text-red-600 text-sm">{addLocationError}</p>}
-                        <Button type="submit" className="w-full" disabled={isAddingLocation}>
-                          {isAddingLocation ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : 'Create Location'}
-                        </Button>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Manage Users link */}
-                  <Button variant="outline" className="px-6" onClick={() => router.push(`/${locale}/manage-users`)}>
-                    <Settings className="mr-2 h-4 w-4" />Manage Users
-                  </Button>
-                </>
-              )}
+          {/* Not logged in */}
+          {!isLoggedIn && (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center fade-in">
+              <div className="w-14 h-14 rounded-2xl bg-gray-900 flex items-center justify-center mb-5">
+                <BookOpen className="w-7 h-7 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('HomePage.welcomeTitle')}</h1>
+              <p className="text-gray-400 mb-7 max-w-sm text-sm leading-relaxed">{t('HomePage.welcomeDesc')}</p>
+              <button onClick={() => setShowLogin(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition-colors">
+                <LogIn className="w-4 h-4" />{t('Auth.login')}
+              </button>
             </div>
+          )}
 
-            {/* ── Search ── */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>{t('CustomerSearch.title')}</CardTitle>
-                <CardDescription>{t('CustomerSearch.description')}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder={t('CustomerSearch.placeholder')}
+          {/* Logged in */}
+          {isLoggedIn && (
+            <div className="space-y-5 fade-in">
+
+              {/* ── Toolbar ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3.5 flex flex-wrap gap-2">
+                <Btn onClick={() => router.push(`/${locale}/add-record`)}>
+                  <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
+                </Btn>
+                <a href="/api/export-csv" download="customer_records.csv">
+                  <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
+                </a>
+                <Btn variant="secondary" onClick={() => setUploadModal(true)}>
+                  <Upload className="w-3.5 h-3.5" />{t('HomePage.importCSV')}
+                </Btn>
+
+                {currentUser?.role === 'MANAGER' && (
+                  <>
+                    <div className="w-px bg-gray-200 mx-0.5 self-stretch" />
+                    <Btn variant="secondary"
+                      className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
+                      onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
+                      <Users className="w-3.5 h-3.5" />View All Users
+                    </Btn>
+                    <Btn variant="secondary"
+                      className={showAllCustomers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
+                      onClick={() => { const n = !showAllCustomers; setShowAllCustomers(n); if (n && !allCustomers.length) fetchAllCustomers(1) }}>
+                      <Users className="w-3.5 h-3.5" />View All Customers
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => setAddUserModal(true)}><UserPlus className="w-3.5 h-3.5" />Add User</Btn>
+                    <Btn variant="secondary" onClick={() => setAddLocModal(true)}><MapPin className="w-3.5 h-3.5" />Add Location</Btn>
+                    <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}><Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}</Btn>
+                  </>
+                )}
+              </div>
+
+              {/* ── All Users panel ── */}
+              {currentUser?.role === 'MANAGER' && showAllUsers && (
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden fade-in">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
+                    <div>
+                      <h2 className="font-semibold text-gray-900 text-[15px]">All Users</h2>
+                      <p className="text-xs text-gray-400 mt-0.5">{allUsers.length} total</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {(['ALL', 'MANAGER', 'INSTRUCTOR'] as const).map(r => (
+                        <button key={r} onClick={() => setRoleFilter(r)} className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${roleFilter === r ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{r}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {auLoading ? [...Array(4)].map((_, i) => <ShimmerRow key={i} />) : (
+                    <div className="divide-y divide-gray-50">
+                      {filteredUsers.length === 0
+                        ? <div className="px-6 py-10 text-center text-sm text-gray-400">No users found</div>
+                        : filteredUsers.map(u => (
+                          <div key={u.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
+                            <Avatar name={`${u.firstName} ${u.lastName}`} color="gray" />
+                            <div className="flex-1 min-w-0">
+                              <button onClick={() => setUserModal(u)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(u.firstName, u.lastName)}</button>
+                              <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                            </div>
+                            <span className="text-xs text-gray-400 hidden sm:block font-mono">{u.username}</span>
+                            <Badge variant={u.role === 'MANAGER' ? 'blue' : 'green'}>{u.role}</Badge>
+                            <span className="text-xs text-gray-400 hidden lg:block">{new Date(u.createdAt || '').toLocaleDateString()}</span>
+                            <button onClick={() => deleteUser(u.id, formatName(u.firstName, u.lastName))} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── All Customers panel ── */}
+              {currentUser?.role === 'MANAGER' && showAllCustomers && (
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden fade-in">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
+                    <div>
+                      <h2 className="font-semibold text-gray-900 text-[15px]">All Customers</h2>
+                      <p className="text-xs text-gray-400 mt-0.5">Page {acPage}/{acTotalPages}{customerCount != null ? ` · ${customerCount} total` : ''}</p>
+                    </div>
+                    {acTotalPages > 1 && (
+                      <div className="flex gap-1.5">
+                        <button disabled={acPage === 1 || acLoading} onClick={() => fetchAllCustomers(acPage - 1)} className="px-3 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-40 transition-colors">← Prev</button>
+                        <button disabled={acPage === acTotalPages || acLoading} onClick={() => fetchAllCustomers(acPage + 1)} className="px-3 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-40 transition-colors">Next →</button>
+                      </div>
+                    )}
+                  </div>
+                  {acLoading ? [...Array(6)].map((_, i) => <ShimmerRow key={i} />) : (
+                    <div className="divide-y divide-gray-50">
+                      {allCustomers.length === 0
+                        ? <div className="px-6 py-10 text-center text-sm text-gray-400">No customers found</div>
+                        : allCustomers.map(c => (
+                          <div key={c.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
+                            <Avatar name={`${c.firstName} ${c.lastName}`} color="green" />
+                            <div className="flex-1 min-w-0">
+                              <button onClick={() => fetchDetail(c.id)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(c.firstName, c.lastName)}</button>
+                              <p className="text-xs text-gray-400 truncate">{c.email}</p>
+                            </div>
+                            <span className="text-xs text-gray-400 hidden sm:block">{c.phone || '—'}</span>
+                            <span className="text-xs text-gray-400 hidden lg:block">
+                              {c.lessonParticipants?.[0]?.lesson?.createdAt ? new Date(c.lessonParticipants[0].lesson.createdAt).toLocaleDateString() : 'No lessons'}
+                            </span>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => openEdit(c)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => deleteCustomer(c.id, formatName(c.firstName, c.lastName))} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Search box ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-6 pt-5 pb-4">
+                  <p className="text-[13px] font-semibold text-gray-400 uppercase tracking-wide mb-3">{t('CustomerSearch.title')}</p>
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
                       value={searchTerm}
-                      onChange={e => { setSearchTerm(e.target.value); setPage(1) }}
-                      className="pl-10"
+                      onChange={e => { setSearchTerm(e.target.value); setSearchPage(1) }}
+                      placeholder={t('HomePage.searchPlaceholder')}
+                      className="w-full pl-10 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
                     />
+                    {searchTerm && (
+                      <button onClick={() => { setSearchTerm(''); setResults([]) }} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Search results */}
-                {isLoading && (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                {sLoading && <div className="border-t border-gray-50">{[...Array(3)].map((_, i) => <ShimmerRow key={i} />)}</div>}
+
+                {sError && !sLoading && (
+                  <div className="border-t border-gray-50 px-6 py-5 flex items-center gap-2.5 text-red-500">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm">{t('HomePage.searchFailedCustomer')}</span>
                   </div>
                 )}
 
-                {isError && (
-                  <div className="flex items-center gap-2 text-red-600 py-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{errorMessageSearch}</span>
-                  </div>
-                )}
-
-                {!isLoading && searchResults.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    {searchResults.map(customer => (
-                      <div key={customer.id} className="border rounded-lg overflow-hidden">
-                        <div
-                          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
-                          onClick={() => toggleExpandCustomer(customer.id)}
-                        >
-                          <div>
-                            <p className="font-medium">{formatName(customer.firstName, customer.lastName)}</p>
-                            <p className="text-sm text-gray-500">{customer.email}</p>
-                            {customer.phone && <p className="text-sm text-gray-500">{customer.phone}</p>}
+                {!sLoading && !sError && results.length > 0 && (
+                  <div className="border-t border-gray-50">
+                    {results.map(c => (
+                      <div key={c.id}>
+                        <div className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group cursor-pointer" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
+                          <Avatar name={`${c.firstName} ${c.lastName}`} color="violet" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{formatName(c.firstName, c.lastName)}</p>
+                            <p className="text-xs text-gray-400 truncate">{c.email}{c.phone ? ` · ${c.phone}` : ''}</p>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400">
-                              {customer.lessonParticipants?.length || 0} lessons (preview)
-                            </span>
+                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={e => { e.stopPropagation(); fetchDetail(c.id) }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                              <Eye className="w-3 h-3" />View
+                            </button>
                             {currentUser?.role === 'MANAGER' && (
                               <>
-                                <Button variant="outline" size="sm"
-                                  onClick={e => { e.stopPropagation(); handleEditCustomer(customer) }}>
-                                  Edit
-                                </Button>
-                                <Button variant="destructive" size="sm"
-                                  onClick={e => { e.stopPropagation(); handleDeleteCustomer(customer.id, formatName(customer.firstName, customer.lastName)) }}
-                                  disabled={isDeletingCustomer}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <button onClick={e => { e.stopPropagation(); openEdit(c) }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                                  <Edit3 className="w-3 h-3" />Edit
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); deleteCustomer(c.id, formatName(c.firstName, c.lastName)) }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+                                  <Trash2 className="w-3 h-3" />Delete
+                                </button>
                               </>
                             )}
                           </div>
+                          <span className="text-gray-300 flex-shrink-0">{expandedId === c.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
                         </div>
 
-                        {expandedCustomerId === customer.id && (
-                          <div className="border-t bg-gray-50 p-4">
-                            <div className="flex justify-between items-center mb-3">
-                              <h4 className="text-sm font-medium">{t('CustomerSearch.lessonDetails')}</h4>
-                              <Button size="sm" variant="outline"
-                                onClick={() => handleViewCustomerDetails(customer.id)}>
-                                View Full History
-                              </Button>
+                        {expandedId === c.id && (
+                          <div className="border-t border-gray-50 bg-gray-50/70 px-6 py-4 fade-in">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t('CustomerSearch.lessonDetails')}</p>
+                              <button onClick={() => fetchDetail(c.id)} className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors">View full history →</button>
                             </div>
-                            {customer.lessonParticipants && customer.lessonParticipants.length > 0 ? (
-                              <div className="space-y-3">
-                                {customer.lessonParticipants.map(lp => (
-                                  <div key={lp.id} className="bg-white rounded p-3 border text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="font-medium">
-                                        {lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : 'N/A'}
-                                        {' — '}{lp.lesson.lessonType}
-                                      </span>
-                                      <span className="text-gray-500">
-                                        {formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}
-                                      </span>
+                            {c.lessonParticipants && c.lessonParticipants.length > 0 ? (
+                              <div className="space-y-2">
+                                {c.lessonParticipants.map(lp => (
+                                  <div key={lp.id} className="bg-white rounded-xl border border-gray-100 p-3.5">
+                                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                      <span className="text-xs font-semibold text-gray-800">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                                      <Badge>{lp.lesson.lessonType}</Badge>
+                                      {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                                      <span className="text-xs text-gray-400 ml-auto">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
                                     </div>
-                                    {lp.customerSymptoms && (
-                                      <p className="text-gray-600 mt-1"><span className="font-medium">Symptoms:</span> {lp.customerSymptoms}</p>
-                                    )}
-                                    {lp.customerImprovements && (
-                                      <p className="text-gray-600"><span className="font-medium">Improvements:</span> {lp.customerImprovements}</p>
-                                    )}
-                                    {currentUser?.role === 'MANAGER' && (
-                                      <Button variant="destructive" size="sm" className="mt-2"
-                                        onClick={() => handleDeleteLessonParticipant(customer.id, lp.lesson.id, formatName(customer.firstName, customer.lastName))}
-                                        disabled={isDeletingLesson}>
-                                        Delete Lesson
-                                      </Button>
-                                    )}
+                                    {lp.customerSymptoms && <p className="text-xs text-gray-600"><span className="font-semibold text-gray-700">{t('CustomerSearch.symptoms')}:</span> {lp.customerSymptoms}</p>}
+                                    {lp.customerImprovements && <p className="text-xs text-gray-600 mt-0.5"><span className="font-semibold text-gray-700">{t('CustomerSearch.improvements')}:</span> {lp.customerImprovements}</p>}
                                   </div>
                                 ))}
                               </div>
-                            ) : (
-                              <p className="text-sm text-gray-500">No lesson records found.</p>
-                            )}
+                            ) : <p className="text-sm text-gray-400">No lesson records found.</p>}
                           </div>
                         )}
                       </div>
                     ))}
 
-                    {/* Search pagination */}
                     {totalPages > 1 && (
-                      <div className="flex items-center justify-between pt-4">
-                        <Button variant="outline" size="sm" onClick={handlePrevPage} disabled={page === 1}>Previous</Button>
-                        <span className="text-sm text-gray-500">Page {page} of {totalPages} ({totalResults} results)</span>
-                        <Button variant="outline" size="sm" onClick={handleNextPage} disabled={page === totalPages}>Next</Button>
+                      <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-50 bg-gray-50/50">
+                        <button disabled={searchPage === 1} onClick={() => setSearchPage(p => p - 1)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">← Previous</button>
+                        <span className="text-xs text-gray-400">Page {searchPage} of {totalPages} · {total} results</span>
+                        <button disabled={searchPage === totalPages} onClick={() => setSearchPage(p => p + 1)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">Next →</button>
                       </div>
                     )}
                   </div>
                 )}
 
-                {!isLoading && !isError && debouncedSearchTerm.length >= 2 && searchResults.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">{t('CustomerSearch.noResults')}</p>
+                {!sLoading && !sError && debounced.length >= 2 && results.length === 0 && (
+                  <div className="border-t border-gray-50 px-6 py-10 text-center">
+                    <Search className="w-7 h-7 text-gray-200 mx-auto mb-2.5" />
+                    <p className="text-sm text-gray-400">{t('HomePage.noResults')}</p>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* ── All Users panel ── */}
-            {currentUser?.role === 'MANAGER' && showAllUsersDialog && (
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle>All Users</CardTitle>
-                  <CardDescription>View and manage all users in the system</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-2 mb-4">
-                    {(['ALL', 'MANAGER', 'INSTRUCTOR'] as const).map(role => (
-                      <Button key={role} size="sm"
-                        variant={userRoleFilter === role ? 'default' : 'outline'}
-                        onClick={() => setUserRoleFilter(role)}>
-                        {role}
-                      </Button>
-                    ))}
-                  </div>
-                  {isLoadingUsers ? <ShimmerRows count={5} /> : (
-                    <div className="overflow-x-auto">
-                      <Table className="table-fixed w-full">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[20%] px-4 py-3">Name</TableHead>
-                            <TableHead className="w-[25%] px-4 py-3">Email</TableHead>
-                            <TableHead className="w-[15%] px-4 py-3">Username</TableHead>
-                            <TableHead className="w-[10%] px-4 py-3">Role</TableHead>
-                            <TableHead className="w-[15%] px-4 py-3">Created</TableHead>
-                            <TableHead className="w-[15%] px-4 py-3 text-center">Action</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {allUsers.filter(u => userRoleFilter === 'ALL' || u.role === userRoleFilter).length > 0
-                            ? allUsers
-                                .filter(u => userRoleFilter === 'ALL' || u.role === userRoleFilter)
-                                .map(user => (
-                                  <TableRow key={user.id}>
-                                    <TableCell className="px-4 py-3">
-                                      <button className="text-blue-600 hover:underline"
-                                        onClick={() => setSelectedUserInfo(user)}>
-                                        {formatName(user.firstName, user.lastName)}
-                                      </button>
-                                    </TableCell>
-                                    <TableCell className="px-4 py-3 break-all">{user.email}</TableCell>
-                                    <TableCell className="px-4 py-3">{user.username}</TableCell>
-                                    <TableCell className="px-4 py-3">
-                                      <span className={`px-2 py-1 rounded text-xs ${user.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                                        {user.role}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="px-4 py-3">{new Date(user.createdAt || '').toLocaleDateString()}</TableCell>
-                                    <TableCell className="px-4 py-3 text-center">
-                                      <Button variant="destructive" size="sm"
-                                        onClick={() => handleDeleteUser(user.id, formatName(user.firstName, user.lastName))}
-                                        disabled={isDeletingUser}>
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-                                ))
-                            : (
-                              <TableRow>
-                                <TableCell colSpan={6} className="text-center text-gray-500 py-8">No users found</TableCell>
-                              </TableRow>
-                            )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ── All Customers panel ── */}
-            {currentUser?.role === 'MANAGER' && showAllCustomersDialog && (
-              <Card className="mb-8">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>All Customers</CardTitle>
-                      <CardDescription>
-                        Page {allCustomersPage} of {allCustomersTotalPages}
-                        {customerCount !== null && ` — ${customerCount} total`}
-                      </CardDescription>
-                    </div>
-                    {/* Pagination controls at top of table */}
-                    {allCustomersTotalPages > 1 && (
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm"
-                          onClick={() => fetchAllCustomers(allCustomersPage - 1)}
-                          disabled={allCustomersPage === 1 || isLoadingCustomers}>
-                          Previous
-                        </Button>
-                        <Button variant="outline" size="sm"
-                          onClick={() => fetchAllCustomers(allCustomersPage + 1)}
-                          disabled={allCustomersPage === allCustomersTotalPages || isLoadingCustomers}>
-                          Next
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingCustomers ? <ShimmerRows /> : (
-                    <div className="overflow-x-auto">
-                      <Table className="table-fixed w-full">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[22%] px-4 py-3 font-semibold">Name</TableHead>
-                            <TableHead className="w-[25%] px-4 py-3 font-semibold">Email</TableHead>
-                            <TableHead className="w-[15%] px-4 py-3 font-semibold">Phone</TableHead>
-                            <TableHead className="w-[15%] px-4 py-3 font-semibold">Last Lesson</TableHead>
-                            <TableHead className="w-[23%] px-4 py-3 font-semibold text-center">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {allCustomers.length > 0
-                            ? allCustomers.map(customer => (
-                              <TableRow key={customer.id}>
-                                <TableCell className="px-4 py-3">
-                                  <button className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                                    onClick={() => handleViewCustomerDetails(customer.id)}>
-                                    {formatName(customer.firstName, customer.lastName)}
-                                  </button>
-                                </TableCell>
-                                <TableCell className="px-4 py-3 break-all">{customer.email}</TableCell>
-                                <TableCell className="px-4 py-3">{customer.phone || 'N/A'}</TableCell>
-                                <TableCell className="px-4 py-3">
-                                  {customer.lessonParticipants?.[0]?.lesson?.createdAt
-                                    ? new Date(customer.lessonParticipants[0].lesson.createdAt).toLocaleDateString()
-                                    : 'None'}
-                                </TableCell>
-                                <TableCell className="px-4 py-3 text-center flex gap-1 justify-center">
-                                  <Button variant="outline" size="sm" onClick={() => handleEditCustomer(customer)}>Edit</Button>
-                                  <Button variant="destructive" size="sm"
-                                    onClick={() => handleDeleteCustomer(customer.id, formatName(customer.firstName, customer.lastName))}
-                                    disabled={isDeletingCustomer}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))
-                            : (
-                              <TableRow>
-                                <TableCell colSpan={5} className="text-center text-gray-500 py-8">No customers found</TableCell>
-                              </TableRow>
-                            )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ── User info modal ── */}
-            {selectedUserInfo && (
-              <Dialog open={!!selectedUserInfo} onOpenChange={open => !open && setSelectedUserInfo(null)}>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>{formatName(selectedUserInfo.firstName, selectedUserInfo.lastName)}</DialogTitle>
-                    <DialogDescription>User Information</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div><Label className="text-xs text-gray-600">Username</Label><p className="font-medium">{selectedUserInfo.username}</p></div>
-                    <div><Label className="text-xs text-gray-600">Email</Label><p className="font-medium break-all">{selectedUserInfo.email}</p></div>
-                    <div>
-                      <Label className="text-xs text-gray-600">Role</Label>
-                      <p className="font-medium">
-                        <span className={`px-2 py-1 rounded text-xs ${selectedUserInfo.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                          {selectedUserInfo.role}
-                        </span>
-                      </p>
-                    </div>
-                    <div><Label className="text-xs text-gray-600">Created</Label><p className="font-medium">{new Date(selectedUserInfo.createdAt || '').toLocaleString()}</p></div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
-
-            {/* ── Customer detail modal ── */}
-            {selectedCustomerInfo && (
-              <Dialog open={!!selectedCustomerInfo} onOpenChange={open => !open && setSelectedCustomerInfo(null)}>
-                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-                  <DialogHeader>
-                    <DialogTitle>{formatName(selectedCustomerInfo.firstName, selectedCustomerInfo.lastName)}</DialogTitle>
-                    <DialogDescription>Customer Information</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 overflow-y-auto flex-1 pr-4">
-                    <div><Label className="text-xs text-gray-600">Email</Label><p className="font-medium break-all">{selectedCustomerInfo.email}</p></div>
-                    <div><Label className="text-xs text-gray-600">Phone</Label><p className="font-medium">{selectedCustomerInfo.phone || 'N/A'}</p></div>
-                    <div><Label className="text-xs text-gray-600">Created At</Label><p className="font-medium">{selectedCustomerInfo.createdAt ? new Date(selectedCustomerInfo.createdAt).toLocaleString() : 'N/A'}</p></div>
-
-                    <div className="border-t pt-4">
-                      <h4 className="text-sm font-medium mb-2">{t('CustomerSearch.lessonDetails')}</h4>
-                      {isLoadingCustomerDetails ? (
-                        <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" /></div>
-                      ) : selectedCustomerInfo.lessonParticipants && selectedCustomerInfo.lessonParticipants.length > 0 ? (
-                        <div className="space-y-3">
-                          {selectedCustomerInfo.lessonParticipants.map((lp) => (
-                            <div key={lp.id} className="border rounded p-3 bg-gray-50 text-sm">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <span className="font-medium">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : 'N/A'}</span>
-                                  <span className="ml-2 text-gray-500">{lp.lesson.lessonType}</span>
-                                  {lp.lesson.location && <span className="ml-2 text-gray-400">@ {lp.lesson.location.name}</span>}
-                                </div>
-                                <span className="text-gray-500">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
-                              </div>
-                              {lp.lesson.lessonContent && <p className="text-gray-600 mt-1">{lp.lesson.lessonContent}</p>}
-                              {lp.customerSymptoms && <p className="text-gray-600 mt-1"><span className="font-medium">Symptoms:</span> {lp.customerSymptoms}</p>}
-                              {lp.customerImprovements && <p className="text-gray-600"><span className="font-medium">Improvements:</span> {lp.customerImprovements}</p>}
-                              <div className="flex gap-2 mt-2">
-                                <span className={`text-xs px-2 py-0.5 rounded ${lp.status === 'attended' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                  {lp.status}
-                                </span>
-                                {currentUser?.role === 'MANAGER' && (
-                                  <Button variant="destructive" size="sm"
-                                    onClick={() => handleDeleteLessonParticipant(selectedCustomerInfo.id, lp.lesson.id, formatName(selectedCustomerInfo.firstName, selectedCustomerInfo.lastName))}
-                                    disabled={isDeletingLesson}>
-                                    Delete Lesson
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500">No lesson records found.</p>
-                      )}
-                    </div>
-
-                    {currentUser?.role === 'MANAGER' && (
-                      <div className="border-t pt-4 flex gap-2">
-                        <Button variant="outline"
-                          onClick={() => { handleEditCustomer(selectedCustomerInfo); setSelectedCustomerInfo(null) }}>
-                          Edit Customer
-                        </Button>
-                        <Button variant="destructive"
-                          onClick={() => { handleDeleteCustomer(selectedCustomerInfo.id, formatName(selectedCustomerInfo.firstName, selectedCustomerInfo.lastName)); setSelectedCustomerInfo(null) }}
-                          disabled={isDeletingCustomer}>
-                          Delete Customer
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
-
-            {/* ── Edit customer modal ── */}
-            {editingCustomer && (
-              <Dialog open={!!editingCustomer} onOpenChange={open => !open && setEditingCustomer(null)}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Edit Customer</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>First Name</Label>
-                        <Input className="mt-1" value={editCustomerForm.firstName}
-                          onChange={e => setEditCustomerForm({ ...editCustomerForm, firstName: e.target.value })} />
-                      </div>
-                      <div>
-                        <Label>Last Name</Label>
-                        <Input className="mt-1" value={editCustomerForm.lastName}
-                          onChange={e => setEditCustomerForm({ ...editCustomerForm, lastName: e.target.value })} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <Input className="mt-1" type="email" value={editCustomerForm.email}
-                        onChange={e => setEditCustomerForm({ ...editCustomerForm, email: e.target.value })} />
-                    </div>
-                    <div>
-                      <Label>Phone</Label>
-                      <Input className="mt-1" value={editCustomerForm.phone}
-                        onChange={e => setEditCustomerForm({ ...editCustomerForm, phone: e.target.value })} />
-                    </div>
-                    {editCustomerError && <p className="text-red-600 text-sm">{editCustomerError}</p>}
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="outline" onClick={() => setEditingCustomer(null)}>Cancel</Button>
-                      <Button onClick={handleSaveCustomerEdit} disabled={isSavingCustomerEdit}>
-                        {isSavingCustomerEdit ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
-          </>
-        )}
+                {!sLoading && searchTerm.length > 0 && searchTerm.length < 2 && (
+                  <div className="border-t border-gray-50 px-6 py-4 text-center text-xs text-gray-400">Type at least 2 characters to search</div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
-    </div>
+
+      {/* ━━━━ ALL MODALS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+
+      {/* Login */}
+      <ModalShell open={showLogin} onClose={() => setShowLogin(false)} title={t('Auth.login')}>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <Field label={t('Auth.username')} type="text" value={loginForm.username} onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} placeholder="Enter your username" required autoFocus />
+          <Field label={t('Auth.password')} type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} placeholder="••••••••" required />
+          {loginError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{loginError}</div>}
+          <Btn type="submit" disabled={loginLoading} className="w-full mt-2 justify-center !py-3">
+            {loginLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Signing in…</> : t('Auth.login')}
+          </Btn>
+        </form>
+      </ModalShell>
+
+      {/* Customer detail */}
+      <ModalShell open={!!detailModal} onClose={() => setDetailModal(null)} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle="Customer Profile">
+        {detailModal && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Email', value: detailModal.email },
+                { label: 'Phone', value: detailModal.phone || '—' },
+                { label: 'Since', value: detailModal.createdAt ? new Date(detailModal.createdAt).toLocaleDateString() : '—' }
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-gray-50 rounded-xl p-3.5">
+                  <p className="text-[11px] text-gray-400 mb-1 uppercase tracking-wide font-medium">{label}</p>
+                  <p className="text-sm font-medium text-gray-900 break-all">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t('CustomerSearch.lessonDetails')}</p>
+                {detailModal.lessonParticipants && <Badge>{detailModal.lessonParticipants.length} sessions</Badge>}
+              </div>
+              {detailLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
+              ) : detailModal.lessonParticipants?.length ? (
+                <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+                  {detailModal.lessonParticipants.map(lp => (
+                    <div key={lp.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-colors">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                          <Badge>{lp.lesson.lessonType}</Badge>
+                          {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
+                          {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                        </div>
+                        <span className="text-xs text-gray-400">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
+                      </div>
+                      {lp.lesson.lessonContent && <p className="text-xs text-gray-400 italic mb-2">{lp.lesson.lessonContent}</p>}
+                      {lp.customerSymptoms && <p className="text-xs text-gray-600"><span className="font-semibold">{t('CustomerSearch.symptoms')}:</span> {lp.customerSymptoms}</p>}
+                      {lp.customerImprovements && <p className="text-xs text-gray-600 mt-0.5"><span className="font-semibold">{t('CustomerSearch.improvements')}:</span> {lp.customerImprovements}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-gray-400 py-4 text-center">No lesson records found.</p>}
+            </div>
+            {currentUser?.role === 'MANAGER' && (
+              <div className="flex gap-2 pt-2 border-t border-gray-100">
+                <Btn variant="secondary" size="sm" onClick={() => { openEdit(detailModal); setDetailModal(null) }}><Edit3 className="w-3 h-3" />Edit</Btn>
+                <Btn variant="danger" size="sm" onClick={() => { deleteCustomer(detailModal.id, formatName(detailModal.firstName, detailModal.lastName)); setDetailModal(null) }}><Trash2 className="w-3 h-3" />Delete</Btn>
+              </div>
+            )}
+          </div>
+        )}
+      </ModalShell>
+
+      {/* Edit customer */}
+      <ModalShell open={!!editModal} onClose={() => setEditModal(null)} title="Edit Customer">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="First Name" value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
+            <Field label="Last Name" value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
+          </div>
+          <Field label="Email" type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
+          <Field label="Phone" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Optional" />
+          {editError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{editError}</div>}
+          <div className="flex gap-2 pt-1">
+            <Btn variant="secondary" className="flex-1 justify-center" onClick={() => setEditModal(null)}>Cancel</Btn>
+            <Btn disabled={editLoading} className="flex-1 justify-center" onClick={saveEdit}>{editLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : 'Save Changes'}</Btn>
+          </div>
+        </div>
+      </ModalShell>
+
+      {/* User info */}
+      <ModalShell open={!!userModal} onClose={() => setUserModal(null)} title={userModal ? formatName(userModal.firstName, userModal.lastName) : ''}>
+        {userModal && (
+          <div className="divide-y divide-gray-50">
+            {[
+              { label: 'Username', val: <span className="font-mono text-sm">{userModal.username}</span> },
+              { label: 'Email', val: <span className="text-sm break-all">{userModal.email}</span> },
+              { label: 'Role', val: <Badge variant={userModal.role === 'MANAGER' ? 'blue' : 'green'}>{userModal.role}</Badge> },
+              { label: 'Created', val: <span className="text-sm">{new Date(userModal.createdAt || '').toLocaleString()}</span> },
+            ].map(({ label, val }) => (
+              <div key={label} className="flex items-center gap-4 py-3">
+                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide w-20 flex-shrink-0">{label}</span>
+                {val}
+              </div>
+            ))}
+          </div>
+        )}
+      </ModalShell>
+
+      {/* Add user */}
+      <ModalShell open={addUserModal} onClose={() => setAddUserModal(false)} title="Add New User">
+        <form onSubmit={handleAddUser} className="space-y-3.5">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="First Name" value={addUserForm.firstName} onChange={e => setAddUserForm({ ...addUserForm, firstName: e.target.value })} required />
+            <Field label="Last Name" value={addUserForm.lastName} onChange={e => setAddUserForm({ ...addUserForm, lastName: e.target.value })} required />
+          </div>
+          <Field label="Email" type="email" value={addUserForm.email} onChange={e => setAddUserForm({ ...addUserForm, email: e.target.value })} required />
+          <Field label="Username" value={addUserForm.username} onChange={e => setAddUserForm({ ...addUserForm, username: e.target.value })} required />
+          <Field label="Password" type="password" value={addUserForm.password} onChange={e => setAddUserForm({ ...addUserForm, password: e.target.value })} required />
+          <FieldSelect label="Role" value={addUserForm.role} onChange={e => setAddUserForm({ ...addUserForm, role: e.target.value as UserRole })}>
+            <option value="INSTRUCTOR">Instructor</option>
+            <option value="MANAGER">Manager</option>
+          </FieldSelect>
+          {addUserError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{addUserError}</div>}
+          <Btn type="submit" disabled={addUserLoading} className="w-full justify-center !py-3 mt-1">{addUserLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating…</> : 'Create User'}</Btn>
+        </form>
+      </ModalShell>
+
+      {/* Add location */}
+      <ModalShell open={addLocModal} onClose={() => setAddLocModal(false)} title="Add New Location">
+        <form onSubmit={addLocation} className="space-y-4">
+          <Field label="Location Name" value={locName} onChange={e => setLocName(e.target.value)} placeholder="e.g. Studio A, Room 201" required />
+          {locError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{locError}</div>}
+          <Btn type="submit" disabled={locLoading} className="w-full justify-center !py-3">{locLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating…</> : 'Create Location'}</Btn>
+        </form>
+      </ModalShell>
+
+      {/* Upload */}
+      <ModalShell open={uploadModal} onClose={() => setUploadModal(false)} title={t('HomePage.importCSV')}>
+        <div className="space-y-4">
+          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 hover:border-gray-300 cursor-pointer transition-colors">
+            <Upload className="w-5 h-5 text-gray-400 mb-2" />
+            <span className="text-sm font-medium text-gray-600">{uploadFile ? uploadFile.name : 'Click to select file'}</span>
+            <span className="text-xs text-gray-400 mt-0.5">CSV, XLSX, XLS supported</span>
+            <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { setUploadFile(e.target.files?.[0] || null); setUploadErr(''); setUploadMsg('') }} />
+          </label>
+          {uploadErr && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{uploadErr}</div>}
+          {uploadMsg && <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 px-3.5 py-2.5 rounded-xl"><Activity className="w-4 h-4 flex-shrink-0" />{uploadMsg}</div>}
+          <Btn onClick={handleUpload} disabled={uploading || !uploadFile} className="w-full justify-center !py-3">{uploading ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading…</> : 'Upload & Import'}</Btn>
+        </div>
+      </ModalShell>
+    </>
   )
 }
