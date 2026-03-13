@@ -140,14 +140,28 @@ function Badge({ children, variant = 'gray' }: { children: React.ReactNode; vari
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${v[variant]}`}>{children}</span>
 }
 
-function Avatar({ name, color = 'gray' }: { name: string; color?: 'gray' | 'green' | 'violet' }) {
-  const initials = name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
-  const colors = {
-    gray: 'from-gray-200 to-gray-300 text-gray-700',
-    green: 'from-emerald-100 to-teal-200 text-emerald-800',
-    violet: 'from-violet-100 to-purple-200 text-violet-800'
-  }
-  return <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${colors[color]} flex items-center justify-center text-xs font-semibold flex-shrink-0`}>{initials}</div>
+function Avatar({ firstName, lastName, locale }: { 
+  firstName: string; lastName: string; locale?: string 
+}) {
+  // Korean characters are wider — detect if either name contains Korean
+  const isKorean = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(firstName + lastName)
+  
+  // In Korean locale: Last[0] + First[0] (e.g. 김준)
+  // In English locale: First[0] + Last[0] (e.g. JD)
+  const initials = locale === 'ko'
+    ? `${lastName?.[0] ?? ''}${firstName?.[0] ?? ''}`
+    : `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`
+
+  return (
+    <div className={`
+      h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300
+      flex items-center justify-center font-semibold
+      text-slate-700 flex-shrink-0 select-none
+      ${isKorean ? 'w-11 text-sm' : 'w-9 text-xs'}
+    `}>
+      {initials.toUpperCase() || '?'}
+    </div>
+  )
 }
 
 function ShimmerRow() {
@@ -492,7 +506,7 @@ export default function HomePage() {
                         ? <div className="px-6 py-10 text-center text-sm text-gray-400">No users found</div>
                         : filteredUsers.map(u => (
                           <div key={u.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
-                            <Avatar name={`${u.firstName} ${u.lastName}`} color="gray" />
+                            <Avatar firstName={u.firstName} lastName={u.lastName} locale={locale} />
                             <div className="flex-1 min-w-0">
                               <button onClick={() => setUserModal(u)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(u.firstName, u.lastName)}</button>
                               <p className="text-xs text-gray-400 truncate">{u.email}</p>
@@ -531,7 +545,7 @@ export default function HomePage() {
                         ? <div className="px-6 py-10 text-center text-sm text-gray-400">No customers found</div>
                         : allCustomers.map(c => (
                           <div key={c.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
-                            <Avatar name={`${c.firstName} ${c.lastName}`} color="green" />
+                            <Avatar firstName={c.firstName} lastName={c.lastName} locale={locale} />
                             <div className="flex-1 min-w-0">
                               <button onClick={() => fetchDetail(c.id)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(c.firstName, c.lastName)}</button>
                               <p className="text-xs text-gray-400 truncate">{c.email}</p>
@@ -586,7 +600,7 @@ export default function HomePage() {
                     {results.map(c => (
                       <div key={c.id}>
                         <div className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group cursor-pointer" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
-                          <Avatar name={`${c.firstName} ${c.lastName}`} color="violet" />
+                          <Avatar firstName={c.firstName} lastName={c.lastName} locale={locale} />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{formatName(c.firstName, c.lastName)}</p>
                             <p className="text-xs text-gray-400 truncate">{c.email}{c.phone ? ` · ${c.phone}` : ''}</p>
