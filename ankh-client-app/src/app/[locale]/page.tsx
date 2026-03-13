@@ -140,28 +140,14 @@ function Badge({ children, variant = 'gray' }: { children: React.ReactNode; vari
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${v[variant]}`}>{children}</span>
 }
 
-function Avatar({ firstName, lastName, locale }: { 
-  firstName: string; lastName: string; locale?: string 
-}) {
-  // Korean characters are wider — detect if either name contains Korean
-  const isKorean = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(firstName + lastName)
-  
-  // In Korean locale: Last[0] + First[0] (e.g. 김준)
-  // In English locale: First[0] + Last[0] (e.g. JD)
-  const initials = locale === 'ko'
-    ? `${lastName?.[0] ?? ''}${firstName?.[0] ?? ''}`
-    : `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`
-
-  return (
-    <div className={`
-      h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300
-      flex items-center justify-center font-semibold
-      text-slate-700 flex-shrink-0 select-none
-      ${isKorean ? 'w-11 text-sm' : 'w-9 text-xs'}
-    `}>
-      {initials.toUpperCase() || '?'}
-    </div>
-  )
+function Avatar({ name, color = 'gray' }: { name: string; color?: 'gray' | 'green' | 'violet' }) {
+  const initials = name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
+  const colors = {
+    gray: 'from-gray-200 to-gray-300 text-gray-700',
+    green: 'from-emerald-100 to-teal-200 text-emerald-800',
+    violet: 'from-violet-100 to-purple-200 text-violet-800'
+  }
+  return <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${colors[color]} flex items-center justify-center text-xs font-semibold flex-shrink-0`}>{initials}</div>
 }
 
 function ShimmerRow() {
@@ -185,6 +171,78 @@ function Btn({ children, variant = 'primary', size = 'md', className = '', ...pr
   const sizes = { sm: 'px-3 py-1.5 text-xs', md: 'px-4 py-2.5 text-sm' }
   const variants = { primary: 'bg-gray-900 text-white hover:bg-gray-800', secondary: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300', danger: 'bg-red-50 text-red-600 hover:bg-red-100' }
   return <button {...props} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{children}</button>
+}
+
+// ─── Recent Lessons component ─────────────────────────────────────────────────
+function RecentLessons({ locale, formatName, onViewCustomer }: {
+  locale: string
+  formatName: (f: string, l: string) => string
+  onViewCustomer: (id: string) => void
+}) {
+  const [lessons, setLessons] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/lessons/recent?limit=8')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.lessons) setLessons(d.lessons) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (!loading && lessons.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-gray-900 text-[15px]">Recent Lessons</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Latest recorded sessions</p>
+        </div>
+        <Activity className="w-4 h-4 text-gray-300" />
+      </div>
+      {loading ? (
+        <div className="divide-y divide-gray-50">{[...Array(4)].map((_, i) => <ShimmerRow key={i} />)}</div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {lessons.map((lp: any) => {
+            const customer = lp.customer
+            const lesson = lp.lesson
+            if (!customer || !lesson) return null
+            return (
+              <div key={lp.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
+                <Avatar name={`${customer.firstName} ${customer.lastName}`} color="violet" />
+                <div className="flex-1 min-w-0">
+                  <button
+                    onClick={() => onViewCustomer(customer.id)}
+                    className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left"
+                  >
+                    {formatName(customer.firstName, customer.lastName)}
+                  </button>
+                  <p className="text-xs text-gray-400 truncate">
+                    {lesson.instructor ? formatName(lesson.instructor.firstName, lesson.instructor.lastName) : ''}
+                    {lesson.location ? ` · ${lesson.location.name}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {lesson.lessonType && <Badge variant="gray">{lesson.lessonType}</Badge>}
+                  <span className="text-xs text-gray-400 hidden sm:block">
+                    {lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric' }) : '—'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onViewCustomer(customer.id)}
+                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
+                >
+                  <Eye className="w-3 h-3" />View
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -406,7 +464,7 @@ export default function HomePage() {
               </div>
               <span className="font-semibold text-gray-900 text-[14px] hidden sm:block">{t('Common.appName')}</span>
               {customerCount !== null && isLoggedIn && (
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{customerCount} {t('HomePage.customers')}</span>
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{customerCount} Customers</span>
               )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -455,34 +513,44 @@ export default function HomePage() {
             <div className="space-y-5 fade-in">
 
               {/* ── Toolbar ── */}
-              <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3.5 flex flex-wrap gap-2">
-                <Btn onClick={() => router.push(`/${locale}/add-record`)}>
-                  <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
-                </Btn>
-                <a href="/api/export-csv" download="customer_records.csv">
-                  <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
-                </a>
-                <Btn variant="secondary" onClick={() => setUploadModal(true)}>
-                  <Upload className="w-3.5 h-3.5" />{t('HomePage.importCSV')}
-                </Btn>
+              <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4 space-y-3">
+                {/* Row 1 — primary actions, always visible */}
+                <div className="flex flex-wrap gap-2">
+                  <Btn onClick={() => router.push(`/${locale}/add-record`)}>
+                    <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
+                  </Btn>
+                  <a href="/api/export-csv" download="customer_records.csv">
+                    <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
+                  </a>
+                  <Btn variant="secondary" onClick={() => setUploadModal(true)}>
+                    <Upload className="w-3.5 h-3.5" />{t('HomePage.importCSV')}
+                  </Btn>
+                </div>
 
+                {/* Row 2 — manager-only actions */}
                 {currentUser?.role === 'MANAGER' && (
-                  <>
-                    <div className="w-px bg-gray-200 mx-0.5 self-stretch" />
-                    <Btn variant="secondary"
-                      className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
-                      onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
-                      <Users className="w-3.5 h-3.5" />View All Users
-                    </Btn>
+                  <div className="flex flex-wrap gap-2 pt-2.5 border-t border-gray-50">
                     <Btn variant="secondary"
                       className={showAllCustomers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
                       onClick={() => { const n = !showAllCustomers; setShowAllCustomers(n); if (n && !allCustomers.length) fetchAllCustomers(1) }}>
-                      <Users className="w-3.5 h-3.5" />View All Customers
+                      <Users className="w-3.5 h-3.5" />All Customers
                     </Btn>
-                    <Btn variant="secondary" onClick={() => setAddUserModal(true)}><UserPlus className="w-3.5 h-3.5" />Add User</Btn>
-                    <Btn variant="secondary" onClick={() => setAddLocModal(true)}><MapPin className="w-3.5 h-3.5" />Add Location</Btn>
-                    <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}><Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}</Btn>
-                  </>
+                    <Btn variant="secondary"
+                      className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
+                      onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
+                      <Users className="w-3.5 h-3.5" />All Users
+                    </Btn>
+                    <div className="w-px bg-gray-200 mx-0.5 self-stretch" />
+                    <Btn variant="secondary" onClick={() => setAddUserModal(true)}>
+                      <UserPlus className="w-3.5 h-3.5" />Add User
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => setAddLocModal(true)}>
+                      <MapPin className="w-3.5 h-3.5" />Add Location
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}>
+                      <Settings className="w-3.5 h-3.5" />Manage Users
+                    </Btn>
+                  </div>
                 )}
               </div>
 
@@ -506,7 +574,7 @@ export default function HomePage() {
                         ? <div className="px-6 py-10 text-center text-sm text-gray-400">No users found</div>
                         : filteredUsers.map(u => (
                           <div key={u.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
-                            <Avatar firstName={u.firstName} lastName={u.lastName} locale={locale} />
+                            <Avatar name={`${u.firstName} ${u.lastName}`} color="gray" />
                             <div className="flex-1 min-w-0">
                               <button onClick={() => setUserModal(u)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(u.firstName, u.lastName)}</button>
                               <p className="text-xs text-gray-400 truncate">{u.email}</p>
@@ -545,7 +613,7 @@ export default function HomePage() {
                         ? <div className="px-6 py-10 text-center text-sm text-gray-400">No customers found</div>
                         : allCustomers.map(c => (
                           <div key={c.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
-                            <Avatar firstName={c.firstName} lastName={c.lastName} locale={locale} />
+                            <Avatar name={`${c.firstName} ${c.lastName}`} color="green" />
                             <div className="flex-1 min-w-0">
                               <button onClick={() => fetchDetail(c.id)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(c.firstName, c.lastName)}</button>
                               <p className="text-xs text-gray-400 truncate">{c.email}</p>
@@ -564,6 +632,9 @@ export default function HomePage() {
                   )}
                 </div>
               )}
+
+              {/* ── Recent Lessons quick-view ── */}
+              <RecentLessons locale={locale} formatName={formatName} onViewCustomer={fetchDetail} />
 
               {/* ── Search box ── */}
               <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -600,7 +671,7 @@ export default function HomePage() {
                     {results.map(c => (
                       <div key={c.id}>
                         <div className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group cursor-pointer" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
-                          <Avatar firstName={c.firstName} lastName={c.lastName} locale={locale} />
+                          <Avatar name={`${c.firstName} ${c.lastName}`} color="violet" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{formatName(c.firstName, c.lastName)}</p>
                             <p className="text-xs text-gray-400 truncate">{c.email}{c.phone ? ` · ${c.phone}` : ''}</p>
