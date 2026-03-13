@@ -7,11 +7,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_secret_for_dev_only'
 const requireManager = (request: NextRequest) => {
   const authHeader = request.headers.get('authorization') || ''
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-
   if (!token) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { role?: string }
     if (decoded.role !== 'MANAGER') {
@@ -23,21 +21,19 @@ const requireManager = (request: NextRequest) => {
   }
 }
 
+// GET /api/customers/[customerId]
+// Returns the full customer record including ALL lesson history.
+// This is intentionally the "expensive" endpoint — it's only called when
+// the user opens the customer detail modal, not on every list render.
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
-    const auth = requireManager(request)
-    if ('error' in auth) return auth.error
-
     const { customerId } = await params
 
     if (!customerId) {
-      return NextResponse.json(
-        { error: 'Customer ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 })
     }
 
     const customer = await prisma.customer.findUnique({
@@ -51,9 +47,13 @@ export async function GET(
         createdAt: true,
         deletedAt: true,
         lessonParticipants: {
+          // Full history — ordered newest first
+          orderBy: { lesson: { createdAt: 'desc' } },
           select: {
+            id: true,
             customerSymptoms: true,
             customerImprovements: true,
+            status: true,
             lesson: {
               select: {
                 id: true,
@@ -61,17 +61,12 @@ export async function GET(
                 lessonContent: true,
                 createdAt: true,
                 instructor: {
-                  select: {
-                    firstName: true,
-                    lastName: true
-                  }
+                  select: { firstName: true, lastName: true }
+                },
+                location: {
+                  select: { name: true }
                 }
               }
-            }
-          },
-          orderBy: {
-            lesson: {
-              createdAt: 'desc'
             }
           }
         }
@@ -79,22 +74,17 @@ export async function GET(
     })
 
     if (!customer) {
-      return NextResponse.json(
-        { error: 'Customer not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
 
     return NextResponse.json({ customer })
   } catch (error) {
     console.error('Error fetching customer:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
+// PUT /api/customers/[customerId]
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
@@ -106,10 +96,7 @@ export async function PUT(
     const { customerId } = await params
 
     if (!customerId) {
-      return NextResponse.json(
-        { error: 'Customer ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 })
     }
 
     const body = await request.json()
@@ -122,27 +109,17 @@ export async function PUT(
       )
     }
 
-    // Check if customer exists
     const customerExists = await prisma.customer.findUnique({
       where: { id: customerId, deletedAt: null }
     })
 
     if (!customerExists) {
-      return NextResponse.json(
-        { error: 'Customer not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
 
-    // Update customer
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
-      data: {
-        firstName,
-        lastName,
-        email,
-        phone: phone || null
-      },
+      data: { firstName, lastName, email, phone: phone || null },
       select: {
         id: true,
         firstName: true,
@@ -157,28 +134,23 @@ export async function PUT(
     return NextResponse.json({ customer: updatedCustomer })
   } catch (error) {
     console.error('Error updating customer:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
+// DELETE /api/customers/[customerId]  — soft delete
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
-    const auth = requireManager(request);
-    if ('error' in auth) return auth.error;
+    const auth = requireManager(request)
+    if ('error' in auth) return auth.error
 
-    const { customerId } = await params;
+    const { customerId } = await params
 
     if (!customerId) {
-      return NextResponse.json(
-        { error: 'Customer ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 })
     }
 
     const customerExists = await prisma.customer.findUnique({
@@ -186,10 +158,7 @@ export async function DELETE(
     })
 
     if (!customerExists) {
-      return NextResponse.json(
-        { error: 'Customer not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
 
     await prisma.customer.update({
@@ -197,16 +166,9 @@ export async function DELETE(
       data: { deletedAt: new Date() }
     })
 
-    return NextResponse.json(
-      { message: 'Customer deleted successfully' },
-      { status: 200 }
-    )
+    return NextResponse.json({ message: 'Customer deleted successfully' }, { status: 200 })
   } catch (error) {
-    console.error('Error:', error);
-
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+    console.error('Error deleting customer:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } 
 }
