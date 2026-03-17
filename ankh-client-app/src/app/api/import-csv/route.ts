@@ -264,7 +264,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (validRows.length > 0) {
-      const batchSize = 50
+      // Larger batches reduce round-trips dramatically for medium files (~0.5–5MB)
+      const batchSize = 200
 
       const customers = new Map<string, { id: string; name: string }>()
       const instructors = new Map<string, { email: string; name: string }>()
@@ -310,16 +311,13 @@ export async function POST(request: NextRequest) {
       })
 
       const locationNames = Array.from(locations)
-      for (const chunk of chunkArray(locationNames, batchSize)) {
-        await prisma.$transaction(
-          chunk.map(name =>
-            prisma.location.upsert({
-              where: { name },
-              update: {},
-              create: { name }
-            })
-          )
-        )
+      // Locations can be bulk inserted; we don't need per-row upserts.
+      // `skipDuplicates` relies on the unique constraint on `Location.name`.
+      for (const chunk of chunkArray(locationNames, 1000)) {
+        await prisma.location.createMany({
+          data: chunk.map(name => ({ name })),
+          skipDuplicates: true
+        })
       }
 
       const locationRecords = await prisma.location.findMany({

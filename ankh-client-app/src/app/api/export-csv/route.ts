@@ -1,55 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
-// import { PrismaClient } from '../../../../generated/prisma'
+import { prisma } from '@/lib/prisma'
 
-// const prisma = new PrismaClient();
+const csvEscape = (value: unknown) => {
+  const s = (value ?? '').toString()
+  // Escape if contains comma, quote, or newline
+  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    // Fetch all lesson participants with related data for customer progress tracking
-    // const lessonParticipants = await prisma.lessonParticipant.findMany({
-    //   include: {
-    //     customer: {
-    //       select: {
-    //         id: true,
-    //         firstName: true,
-    //         lastName: true,
-    //         email: true,
-    //         phone: true
-    //       }
-    //     },
-    //     lesson: {
-    //       include: {
-    //         instructor: {
-    //           select: {
-    //             firstName: true,
-    //             lastName: true,
-    //             email: true
-    //           }
-    //         },
-    //         location: {
-    //           select: {
-    //             name: true
-    //           }
-    //         }
-    //       }
-    //     }
-    //   },
-    //   orderBy: {
-    //     lesson: {
-    //       startTime: 'desc'
-    //     }
-    //   }
-    // })
+    const lessonParticipants = await prisma.lessonParticipant.findMany({
+      where: { customer: { deletedAt: null } },
+      orderBy: { lesson: { createdAt: 'desc' } },
+      select: {
+        customer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
+          }
+        },
+        lesson: {
+          select: {
+            id: true,
+            lessonType: true,
+            lessonContent: true,
+            createdAt: true,
+            instructor: { select: { firstName: true, lastName: true } },
+            location: { select: { name: true } }
+          }
+        },
+        customerSymptoms: true,
+        customerImprovements: true
+      }
+    })
 
-    // if (lessonParticipants.length === 0) {
-    //   return NextResponse.json({
-    //     message: 'No lesson records found',
-    //     csv: 'Customer ID,Customer Name,Initial Symptom,Lesson ID,Lesson Date,Instructor Name,Lesson Type,Lesson Content,Customer Symptoms,Customer Improvements,Course Completion Status\n'
-    //   })
-    // }
-
-    // Generate CSV content
-    const csvHeaders = [
+    const headers = [
       'Customer ID',
       'Customer Name',
       'Initial Symptom',
@@ -57,34 +44,45 @@ export async function GET(request: NextRequest) {
       'Lesson Date',
       'Instructor Name',
       'Lesson Type',
-      'Lesson Content',
+      'Location Name',
       'Customer Symptoms',
-      'Customer Improvements',
+      'Lesson Content',
       'Course Completion Status'
-    ].join(',')
+    ]
 
-    // const csvRows = lessonParticipants.map(participant => [
-    //   participant.customer.id,
-    //   `${participant.customer.firstName} ${participant.customer.lastName}`,
-    //   '', // Initial Symptom - not stored in current schema
-    //   participant.lesson.id,
-    //   new Date(participant.lesson.startTime).toLocaleDateString('en-US'),
-    //   `${participant.lesson.instructor.firstName} ${participant.lesson.instructor.lastName}`,
-    //   participant.lesson.lessonType || 'Group',
-    //   participant.lesson.title || 'Lesson',
-    //   participant.customerSymptoms || '',
-    //   participant.customerImprovements || '',
-    //   participant.lesson.courseCompletionStatus || 'In Progress'
-    // ].join(','))
+    const rows = lessonParticipants.map(p => {
+      const customerName = `${p.customer.firstName} ${p.customer.lastName}`.trim()
+      const instructorName = p.lesson.instructor
+        ? `${p.lesson.instructor.firstName} ${p.lesson.instructor.lastName}`.trim()
+        : ''
+      const lessonDate = p.lesson.createdAt
+        ? new Date(p.lesson.createdAt).toISOString().slice(0, 10)
+        : ''
 
-    // const csvContent = [csvHeaders, ...csvRows].join('\n')
+      return [
+        p.customer.id,
+        customerName,
+        '', // Initial Symptom is not stored in current schema
+        p.lesson.id,
+        lessonDate,
+        instructorName,
+        p.lesson.lessonType || '',
+        p.lesson.location?.name || '',
+        p.customerSymptoms || '',
+        p.lesson.lessonContent || '',
+        p.customerImprovements || ''
+      ].map(csvEscape).join(',')
+    })
 
-    // // Set response headers for file download
-    // const response = new NextResponse(csvContent)
-    // response.headers.set('Content-Type', 'text/csv')
-    // response.headers.set('Content-Disposition', 'attachment; filename="customer_records.csv"')
+    const csvContent = [headers.join(','), ...rows].join('\n')
 
-    // return response
+    const response = new NextResponse(csvContent)
+    response.headers.set('Content-Type', 'text/csv; charset=utf-8')
+    response.headers.set(
+      'Content-Disposition',
+      'attachment; filename="customer_records.csv"'
+    )
+    return response
 
   } catch (error) {
     console.error('CSV export error:', error)
