@@ -881,6 +881,37 @@ export default function HomePage() {
       {/* Upload */}
       <ModalShell open={uploadModal} onClose={() => setUploadModal(false)} title={t('HomePage.importCSV')}>
         <div className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600">{t('HomePage.importRecordsDesc')}</p>
+            <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                {t('HomePage.csvRequirements')}
+              </p>
+              <p className="text-xs text-gray-500 mb-2">{t('HomePage.csvRequirementsDesc')}</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-gray-700">
+                {[
+                  t('HomePage.csvHeaders.customerId'),
+                  t('HomePage.csvHeaders.customerName'),
+                  t('HomePage.csvHeaders.initialSymptom'),
+                  t('HomePage.csvHeaders.lessonId'),
+                  t('HomePage.csvHeaders.lessonDate'),
+                  t('HomePage.csvHeaders.instructorName'),
+                  t('HomePage.csvHeaders.lessonType'),
+                  t('HomePage.csvHeaders.customerSymptoms'),
+                  t('HomePage.csvHeaders.lessonContent'),
+                  t('HomePage.csvHeaders.courseCompletion')
+                ].map(h => (
+                  <div key={h} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+                    <span className="break-words">{h}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-2">
+                Tip: Header names are case-insensitive, and common aliases are accepted.
+              </p>
+            </div>
+          </div>
           <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 hover:border-gray-300 cursor-pointer transition-colors">
             <Upload className="w-5 h-5 text-gray-400 mb-2" />
             <span className="text-sm font-medium text-gray-600">{uploadFile ? uploadFile.name : 'Click to select file'}</span>
