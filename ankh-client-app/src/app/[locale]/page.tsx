@@ -463,10 +463,7 @@ export default function HomePage() {
             fetchCount()
             fetchAllCustomers(1)
             fetchAllUsers()
-            setTimeout(() => {
-              setUploadModal(false)
-              setUploadMsg('')
-            }, 1200) // Show success popup for 1.2s before closing
+            setUploadModal(false) // Close dialog on success
           } else {
             setUploadErr(data.error || 'Upload failed.')
           }
@@ -990,7 +987,6 @@ export default function HomePage() {
             <span className="text-sm font-medium text-gray-600">{uploadFile ? uploadFile.name : t('HomePage.clickToSelectFile')}</span>
             <span className="text-xs text-gray-400 mt-0.5">{t('HomePage.fileTypesSupported')}</span>
             <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { setUploadFile(e.target.files?.[0] || null); setUploadErr(''); setUploadMsg('') }} />
-                      // ...existing code...
           </label>
           {uploadErr && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{uploadErr}</div>}
           {uploadMsg && <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 px-3.5 py-2.5 rounded-xl"><Activity className="w-4 h-4 flex-shrink-0" />{uploadMsg}</div>}
