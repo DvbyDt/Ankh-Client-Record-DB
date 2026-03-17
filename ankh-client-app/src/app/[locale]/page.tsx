@@ -310,6 +310,8 @@ export default function HomePage() {
   const [uploadModal, setUploadModal] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing'>('idle')
   const [uploadMsg, setUploadMsg] = useState('')
   const [uploadErr, setUploadErr] = useState('')
 
@@ -429,13 +431,62 @@ export default function HomePage() {
   }
   const handleUpload = async () => {
     if (!uploadFile) { setUploadErr('Please select a file.'); return }
-    setUploading(true); setUploadMsg(''); setUploadErr('')
-    const token = Cookies.get('jwt-token'); const fd = new FormData(); fd.append('file', uploadFile)
-    try {
-      const r = await fetch('/api/import-csv', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
-      const d = await r.json()
-      if (r.ok) { setUploadMsg(d.message || 'Imported!'); setUploadFile(null); fetchCount(); if (showAllCustomers) fetchAllCustomers(1) } else setUploadErr(d.error || 'Upload failed.')
-    } catch { setUploadErr('Unexpected error.') } finally { setUploading(false) }
+    setUploading(true)
+    setUploadPhase('uploading')
+    setUploadProgress(0)
+    setUploadMsg('')
+    setUploadErr('')
+
+    const token = Cookies.get('jwt-token')
+    const fd = new FormData()
+    fd.append('file', uploadFile)
+
+    await new Promise<void>((resolve) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', '/api/import-csv')
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+      xhr.upload.onprogress = (evt) => {
+        if (!evt.lengthComputable) return
+        const pct = Math.round((evt.loaded / evt.total) * 100)
+        setUploadProgress(pct)
+      }
+
+      xhr.onload = () => {
+        try {
+          setUploadPhase('processing')
+          setUploadProgress(100)
+          const data = xhr.responseText ? JSON.parse(xhr.responseText) : {}
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadMsg(data.message || 'Imported!')
+            setUploadFile(null)
+            fetchCount()
+            fetchAllCustomers(1)
+            fetchAllUsers()
+            setUploadModal(false) // Close dialog on success
+          } else {
+            setUploadErr(data.error || 'Upload failed.')
+          }
+        } catch {
+          setUploadErr('Unexpected error.')
+        } finally {
+          setUploading(false)
+          setUploadPhase('idle')
+          setUploadProgress(null)
+          resolve()
+        }
+      }
+
+      xhr.onerror = () => {
+        setUploadErr('Unexpected error.')
+        setUploading(false)
+        setUploadPhase('idle')
+        setUploadProgress(null)
+        resolve()
+      }
+
+      xhr.send(fd)
+    })
   }
 
   const filteredUsers = allUsers.filter(u => roleFilter === 'ALL' || u.role === roleFilter)
@@ -527,7 +578,7 @@ export default function HomePage() {
                   )}
                 </div>
                 {/* Row 1 — primary actions, always visible */}
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-2.5 mb-4">
                   <Btn onClick={() => router.push(`/${locale}/add-record`)}>
                     <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
                   </Btn>
@@ -539,32 +590,37 @@ export default function HomePage() {
                   </Btn>
                 </div>
 
-                {/* Row 2 — manager-only actions */}
+                {/* Separator and Row 2 — manager-only actions */}
                 {currentUser?.role === 'MANAGER' && (
-                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-50">
-                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mr-1.5">
-                      {t('HomePage.adminLabel')}
-                    </span>
-                    <Btn variant="secondary"
-                      className={showAllCustomers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
-                      onClick={() => { const n = !showAllCustomers; setShowAllCustomers(n); if (n && !allCustomers.length) fetchAllCustomers(1) }}>
-                      <Users className="w-3.5 h-3.5" />{t('HomePage.allCustomersTitle')}
-                    </Btn>
-                    <Btn variant="secondary"
-                      className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
-                      onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
-                      <Users className="w-3.5 h-3.5" />{t('HomePage.allUsersTitle')}
-                    </Btn>
-                    <Btn variant="secondary" onClick={() => setAddUserModal(true)}>
-                      <UserPlus className="w-3.5 h-3.5" />{t('QuickActions.addUser')}
-                    </Btn>
-                    <Btn variant="secondary" onClick={() => setAddLocModal(true)}>
-                      <MapPin className="w-3.5 h-3.5" />{t('QuickActions.addLocation')}
-                    </Btn>
-                    <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}>
-                      <Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}
-                    </Btn>
-                  </div>
+                  <>
+                    <div className="flex justify-center my-2">
+                      <div className="w-24 h-1 rounded-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+                      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mr-1.5">
+                        {t('HomePage.adminLabel')}
+                      </span>
+                      <Btn variant="secondary"
+                        className={showAllCustomers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
+                        onClick={() => { const n = !showAllCustomers; setShowAllCustomers(n); if (n && !allCustomers.length) fetchAllCustomers(1) }}>
+                        <Users className="w-3.5 h-3.5" />{t('HomePage.allCustomersTitle')}
+                      </Btn>
+                      <Btn variant="secondary"
+                        className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
+                        onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
+                        <Users className="w-3.5 h-3.5" />{t('HomePage.allUsersTitle')}
+                      </Btn>
+                      <Btn variant="secondary" onClick={() => setAddUserModal(true)}>
+                        <UserPlus className="w-3.5 h-3.5" />{t('QuickActions.addUser')}
+                      </Btn>
+                      <Btn variant="secondary" onClick={() => setAddLocModal(true)}>
+                        <MapPin className="w-3.5 h-3.5" />{t('QuickActions.addLocation')}
+                      </Btn>
+                      <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}>
+                        <Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}
+                      </Btn>
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -934,6 +990,22 @@ export default function HomePage() {
           </label>
           {uploadErr && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{uploadErr}</div>}
           {uploadMsg && <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 px-3.5 py-2.5 rounded-xl"><Activity className="w-4 h-4 flex-shrink-0" />{uploadMsg}</div>}
+          {uploading && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>
+                  {uploadPhase === 'uploading' ? t('HomePage.uploading') : t('HomePage.processing')}
+                </span>
+                {typeof uploadProgress === 'number' && <span>{uploadProgress}%</span>}
+              </div>
+              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full bg-gray-900 transition-all"
+                  style={{ width: `${uploadProgress ?? 0}%` }}
+                />
+              </div>
+            </div>
+          )}
           <Btn onClick={handleUpload} disabled={uploading || !uploadFile} className="w-full justify-center !py-3">{uploading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('HomePage.importing')}</> : t('HomePage.uploadAndImport')}</Btn>
         </div>
       </ModalShell>
