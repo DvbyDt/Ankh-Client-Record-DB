@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
 
     if (validRows.length > 0) {
       // Larger batches reduce round-trips dramatically for medium files (~0.5–5MB)
-      const batchSize = 200
+      const batchSize = 500
 
       const customers = new Map<string, { id: string; name: string }>()
       const instructors = new Map<string, { email: string; name: string }>()
@@ -325,20 +325,23 @@ export async function POST(request: NextRequest) {
       })
       const locationIdByName = new Map(locationRecords.map(loc => [loc.name, loc.id]))
 
-      const hashedDefaultPassword = await bcrypt.hash(DEFAULT_PASSWORD, 12)
-
       const instructorRecords = Array.from(instructors.values())
-      for (const chunk of chunkArray(instructorRecords, batchSize)) {
-        await prisma.$transaction(
-          chunk.map(instructor => {
-            const [firstName, ...rest] = instructor.name.split(' ')
-            return prisma.user.upsert({
-              where: { email: instructor.email },
-              update: {
-                firstName: firstName || '',
-                lastName: rest.join(' ') || ''
-              },
-              create: {
+      const instructorEmails = instructorRecords.map(record => record.email)
+      const existingInstructors = await prisma.user.findMany({
+        where: { email: { in: instructorEmails } },
+        select: { email: true }
+      })
+      const existingInstructorEmailSet = new Set(existingInstructors.map(u => u.email))
+
+      const missingInstructors = instructorRecords.filter(i => !existingInstructorEmailSet.has(i.email))
+      if (missingInstructors.length > 0) {
+        // Hash once; imported users share the default password
+        const hashedDefaultPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10)
+        for (const chunk of chunkArray(missingInstructors, 1000)) {
+          await prisma.user.createMany({
+            data: chunk.map(instructor => {
+              const [firstName, ...rest] = instructor.name.split(' ')
+              return {
                 username: buildInstructorUsername(instructor.name),
                 password: hashedDefaultPassword,
                 role: 'INSTRUCTOR',
@@ -346,38 +349,40 @@ export async function POST(request: NextRequest) {
                 lastName: rest.join(' ') || '',
                 email: instructor.email
               }
-            })
+            }),
+            skipDuplicates: true
           })
-        )
+        }
       }
 
-      const instructorEmails = instructorRecords.map(record => record.email)
       const instructorUsers = await prisma.user.findMany({
         where: { email: { in: instructorEmails } }
       })
       const instructorIdByEmail = new Map(instructorUsers.map(user => [user.email, user.id]))
 
       const customerRecords = Array.from(customers.values())
-      for (const chunk of chunkArray(customerRecords, batchSize)) {
-        await prisma.$transaction(
-          chunk.map(customer => {
-            const [firstName, ...rest] = customer.name.split(' ')
-            return prisma.customer.upsert({
-              where: { id: customer.id },
-              update: {
-                firstName: firstName || '',
-                lastName: rest.join(' ') || '',
-                email: `${customer.id}@abc.com`
-              },
-              create: {
+      const customerIds = customerRecords.map(c => c.id)
+      const existingCustomers = await prisma.customer.findMany({
+        where: { id: { in: customerIds } },
+        select: { id: true }
+      })
+      const existingCustomerIdSet = new Set(existingCustomers.map(c => c.id))
+      const missingCustomers = customerRecords.filter(c => !existingCustomerIdSet.has(c.id))
+      if (missingCustomers.length > 0) {
+        for (const chunk of chunkArray(missingCustomers, 1000)) {
+          await prisma.customer.createMany({
+            data: chunk.map(customer => {
+              const [firstName, ...rest] = customer.name.split(' ')
+              return {
                 id: customer.id,
                 firstName: firstName || '',
                 lastName: rest.join(' ') || '',
                 email: `${customer.id}@abc.com`
               }
-            })
+            }),
+            skipDuplicates: true
           })
-        )
+        }
       }
 
       const lessonRecords = Array.from(lessons.values())

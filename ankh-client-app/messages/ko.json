@@ -232,6 +232,8 @@
     "deleteUserMessage": "\"{name}\" 사용자를 삭제하시겠습니까?",
     "clickToSelectFile": "파일 선택",
     "uploadAndImport": "업로드 및 가져오기",
+    "uploading": "업로드 중…",
+    "processing": "처리 중…",
     "addNewUserTitle": "새 사용자 추가",
     "createUser": "사용자 생성",
     "addNewLocationTitle": "새 위치 추가",
