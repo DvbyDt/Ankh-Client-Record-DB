@@ -264,8 +264,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (validRows.length > 0) {
-      // Larger batches reduce round-trips dramatically for medium files (~0.5–5MB)
-      const batchSize = 500
+      // Larger batches reduce round-trips dramatically for large files
+      const batchSize = 2000
 
       const customers = new Map<string, { id: string; name: string }>()
       const instructors = new Map<string, { email: string; name: string }>()
@@ -386,64 +386,53 @@ export async function POST(request: NextRequest) {
       }
 
       const lessonRecords = Array.from(lessons.values())
-      for (const chunk of chunkArray(lessonRecords, batchSize)) {
-        await prisma.$transaction(
-          chunk.map(lesson => {
-            const instructorId = instructorIdByEmail.get(lesson.instructorEmail)
-            const locationId = locationIdByName.get(lesson.locationName)
-
-            if (!instructorId || !locationId) {
-              throw new Error('Missing instructor or location during lesson import')
-            }
-
-            return prisma.lesson.upsert({
-              where: { id: lesson.id },
-              update: {
-                lessonType: lesson.lessonType || 'Group',
-                instructorId,
-                locationId,
-                lessonContent: lesson.lessonContent || null,
-                createdAt: lesson.lessonDate
-              },
-              create: {
-                id: lesson.id,
-                lessonType: lesson.lessonType || 'Group',
-                instructorId,
-                locationId,
-                lessonContent: lesson.lessonContent || null,
-                createdAt: lesson.lessonDate
+      await Promise.all(
+        chunkArray(lessonRecords, batchSize).map(chunk =>
+          prisma.$transaction(
+            chunk.map(lesson => {
+              const instructorId = instructorIdByEmail.get(lesson.instructorEmail)
+              const locationId = locationIdByName.get(lesson.locationName)
+              if (!instructorId || !locationId) {
+                throw new Error('Missing instructor or location during lesson import')
               }
-            })
-          })
-        )
-      }
-
-      for (const chunk of chunkArray(validRows, batchSize)) {
-        await prisma.$transaction(
-          chunk.map(row =>
-            prisma.lessonParticipant.upsert({
-              where: {
-                customerId_lessonId: {
-                  customerId: row.customerId,
-                  lessonId: row.lessonId
+              return prisma.lesson.upsert({
+                where: { id: lesson.id },
+                update: {
+                  lessonType: lesson.lessonType || 'Group',
+                  instructorId,
+                  locationId,
+                  lessonContent: lesson.lessonContent || null,
+                  createdAt: lesson.lessonDate
+                },
+                create: {
+                  id: lesson.id,
+                  lessonType: lesson.lessonType || 'Group',
+                  instructorId,
+                  locationId,
+                  lessonContent: lesson.lessonContent || null,
+                  createdAt: lesson.lessonDate
                 }
-              },
-              update: {
-                customerSymptoms: row.customerSymptoms || null,
-                customerImprovements: row.courseCompletionStatus || null,
-                status: 'attended'
-              },
-              create: {
-                customerId: row.customerId,
-                lessonId: row.lessonId,
-                customerSymptoms: row.customerSymptoms || null,
-                customerImprovements: row.courseCompletionStatus || null,
-                status: 'attended'
-              }
+              })
             })
           )
         )
-      }
+      )
+
+      // Bulk insert lessonParticipants, skip duplicates
+      await Promise.all(
+        chunkArray(validRows, batchSize).map(chunk =>
+          prisma.lessonParticipant.createMany({
+            data: chunk.map(row => ({
+              customerId: row.customerId,
+              lessonId: row.lessonId,
+              customerSymptoms: row.customerSymptoms || null,
+              customerImprovements: row.courseCompletionStatus || null,
+              status: 'attended'
+            })),
+            skipDuplicates: true
+          })
+        )
+      )
 
       processedCount = validRows.length
     }
