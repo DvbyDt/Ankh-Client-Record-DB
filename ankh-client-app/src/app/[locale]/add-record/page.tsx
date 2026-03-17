@@ -164,12 +164,12 @@ export default function AddRecordPage() {
         const data = await response.json()
         setSearchResults(data.customers || [])
       } else {
-        setSearchError('Failed to search customers. Please try again.')
+        setSearchError(t('AddRecord.searchFailed'))
         setSearchResults([])
       }
     } catch (error) {
       console.error('Error searching customers:', error)
-      setSearchError('An error occurred while searching. Please try again.')
+      setSearchError(t('AddRecord.searchFailedGeneric'))
       setSearchResults([])
     } finally {
       setIsSearching(false)
@@ -214,7 +214,7 @@ export default function AddRecordPage() {
     if (!editingCustomerId) return
 
     if (!editFormData.firstName.trim() || !editFormData.lastName.trim() || !editFormData.email.trim()) {
-      setEditError('First name, last name, and email are required')
+      setEditError(t('AddRecord.requiredEditFields'))
       return
     }
 
@@ -249,11 +249,11 @@ export default function AddRecordPage() {
         setEditingCustomerId(null)
       } else {
         const error = await response.json()
-        setEditError(error.error || 'Failed to update customer')
+        setEditError(error.error || t('AddRecord.updateCustomerFailed'))
       }
     } catch (error) {
       console.error('Error updating customer:', error)
-      setEditError('An error occurred while updating the customer')
+      setEditError(t('AddRecord.updateCustomerGeneric'))
     } finally {
       setIsEditingSaving(false)
     }
@@ -321,26 +321,29 @@ export default function AddRecordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-[#f7f7f5] to-[#f7f7f5]">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16">
-            <Button variant="ghost" onClick={() => router.push(`/${locale}`)} className="mr-4">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              {t('Common.back')}
-            </Button>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {t('AddRecord.title')}
-            </h1>
+      <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-5 h-16 flex items-center gap-3">
+          <button
+            onClick={() => router.push(`/${locale}`)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="text-sm font-medium">{t('Common.back')}</span>
+          </button>
+          <div className="w-px h-7 bg-gray-200" />
+          <div>
+            <h1 className="text-[15px] font-semibold text-gray-900">{t('AddRecord.title')}</h1>
+            <p className="text-xs text-gray-400 mt-0.5">{t('AddRecord.customerTypeDesc')}</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto px-5 py-6">
         {/* Step 1: Select Customer Type */}
         {step === 'select-type' && (
-          <Card>
+          <Card className="rounded-2xl border-gray-100 shadow-sm">
             <CardHeader>
               <CardTitle>{t('AddRecord.customerType')}</CardTitle>
               <CardDescription>
@@ -349,12 +352,12 @@ export default function AddRecordPage() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card 
-                className="cursor-pointer hover:border-blue-500 hover:shadow-lg transition-all"
+                className="cursor-pointer rounded-2xl hover:border-gray-300 hover:shadow-md transition-all"
                 onClick={() => handleCustomerTypeSelect('new')}
               >
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <UserPlus className="h-8 w-8 text-blue-600" />
+                    <UserPlus className="h-8 w-8 text-gray-900" />
                     <div>
                       <CardTitle className="text-lg">{t('AddRecord.newCustomer')}</CardTitle>
                       <CardDescription className="text-sm">
@@ -371,12 +374,12 @@ export default function AddRecordPage() {
               </Card>
 
               <Card 
-                className="cursor-pointer hover:border-green-500 hover:shadow-lg transition-all"
+                className="cursor-pointer rounded-2xl hover:border-gray-300 hover:shadow-md transition-all"
                 onClick={() => handleCustomerTypeSelect('existing')}
               >
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <Users className="h-8 w-8 text-green-600" />
+                    <Users className="h-8 w-8 text-gray-900" />
                     <div>
                       <CardTitle className="text-lg">{t('AddRecord.existingCustomer')}</CardTitle>
                       <CardDescription className="text-sm">
@@ -397,7 +400,7 @@ export default function AddRecordPage() {
 
         {/* Step 2: Search Existing Customer */}
         {step === 'search-customer' && (
-          <Card>
+          <Card className="rounded-2xl border-gray-100 shadow-sm">
             <CardHeader>
               <CardTitle>{t('AddRecord.searchCustomer')}</CardTitle>
               <CardDescription>
@@ -444,9 +447,7 @@ export default function AddRecordPage() {
                   <h3 className="font-medium text-sm text-gray-700">{t('AddRecord.selectCustomer')}:</h3>
                   {searchResults.map((customer) => (
                     <div key={customer.id} className="space-y-2">
-                      <Card
-                        className="hover:border-blue-500 transition-all"
-                      >
+                      <Card className="rounded-2xl border-gray-100 hover:border-gray-200 transition-all">
                         <CardContent className="py-3">
                           <div className="flex justify-between items-start">
                             <div className="flex-1 cursor-pointer" onClick={() => handleSelectExistingCustomer(customer)}>
@@ -462,7 +463,7 @@ export default function AddRecordPage() {
                               onClick={() => handleEditCustomer(customer)}
                               className="ml-2"
                             >
-                              <Edit className="h-4 w-4 text-blue-600" />
+                              <Edit className="h-4 w-4 text-gray-700" />
                             </Button>
                           </div>
                         </CardContent>
@@ -470,7 +471,7 @@ export default function AddRecordPage() {
 
                       {/* Edit Modal */}
                       {editingCustomerId === customer.id && (
-                        <Card className="border-blue-300 bg-blue-50">
+                        <Card className="rounded-2xl border-gray-200 bg-gray-50">
                           <CardContent className="pt-6 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
@@ -478,7 +479,7 @@ export default function AddRecordPage() {
                                 <Input
                                   value={editFormData.firstName}
                                   onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
-                                  placeholder="First name"
+                                  placeholder={t('AddRecord.placeholderFirstName')}
                                 />
                               </div>
                               <div>
@@ -486,7 +487,7 @@ export default function AddRecordPage() {
                                 <Input
                                   value={editFormData.lastName}
                                   onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
-                                  placeholder="Last name"
+                                  placeholder={t('AddRecord.placeholderLastName')}
                                 />
                               </div>
                               <div>
@@ -495,7 +496,7 @@ export default function AddRecordPage() {
                                   type="email"
                                   value={editFormData.email}
                                   onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                                  placeholder="Email"
+                                  placeholder={t('AddRecord.placeholderEmail')}
                                 />
                               </div>
                               <div>
@@ -503,7 +504,7 @@ export default function AddRecordPage() {
                                 <Input
                                   value={editFormData.phone}
                                   onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
-                                  placeholder="Phone"
+                                  placeholder={t('AddRecord.placeholderPhone')}
                                 />
                               </div>
                             </div>
@@ -564,7 +565,7 @@ export default function AddRecordPage() {
         {/* Step 3: Lesson Form */}
         {step === 'form' && (
           <form onSubmit={handleSubmit}>
-            <Card>
+            <Card className="rounded-2xl border-gray-100 shadow-sm">
               <CardHeader>
                 <CardTitle>{t('AddRecord.lessonInfo')}</CardTitle>
                 <CardDescription>
@@ -643,7 +644,7 @@ export default function AddRecordPage() {
                   </div>
 
                   {lessonForm.customers.map((customer, index) => (
-                    <Card key={index}>
+                    <Card key={index} className="rounded-2xl border-gray-100">
                       <CardContent className="pt-6 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>

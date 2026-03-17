@@ -258,7 +258,7 @@ export default function ManageUsersPage() {
                           onClick={() => openEdit(user)}
                           className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />Edit
+                          <Edit3 className="w-3.5 h-3.5" />{t('ManageUsers.edit')}
                         </button>
                       </div>
                     )}
@@ -269,26 +269,26 @@ export default function ManageUsersPage() {
                         <div className="flex items-center gap-3 mb-5">
                           <Avatar firstName={editForm.firstName || user.firstName} lastName={editForm.lastName || user.lastName} />
                           <div>
-                            <p className="text-sm font-semibold text-slate-900">Editing {user.firstName} {user.lastName}</p>
-                            <p className="text-xs text-slate-400">Leave password blank to keep unchanged</p>
+                            <p className="text-sm font-semibold text-slate-900">{t('ManageUsers.editingUser', { name: `${user.firstName} ${user.lastName}` })}</p>
+                            <p className="text-xs text-slate-400">{t('ManageUsers.leavePasswordBlank')}</p>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <FieldInput
-                            label="First Name"
+                            label={t('HomePage.firstName')}
                             value={editForm.firstName}
                             onChange={v => setEditForm(p => ({ ...p, firstName: v }))}
-                            placeholder="First name"
+                            placeholder={t('AddRecord.placeholderFirstName')}
                           />
                           <FieldInput
-                            label="Last Name"
+                            label={t('HomePage.lastName')}
                             value={editForm.lastName}
                             onChange={v => setEditForm(p => ({ ...p, lastName: v }))}
-                            placeholder="Last name"
+                            placeholder={t('AddRecord.placeholderLastName')}
                           />
                           <FieldInput
-                            label="Email"
+                            label={t('HomePage.email')}
                             icon={<Mail className="w-3 h-3" />}
                             type="email"
                             value={editForm.email}
@@ -297,24 +297,24 @@ export default function ManageUsersPage() {
                           />
                           <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                              <Tag className="w-3 h-3" />Role
+                              <Tag className="w-3 h-3" />{t('HomePage.role')}
                             </label>
                             <select
                               value={editForm.role}
                               onChange={e => setEditForm(p => ({ ...p, role: e.target.value }))}
                               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
                             >
-                              <option value="INSTRUCTOR">Instructor</option>
-                              <option value="MANAGER">Manager</option>
+                              <option value="INSTRUCTOR">{t('Dialogs.instructor')}</option>
+                              <option value="MANAGER">{t('Dialogs.manager')}</option>
                             </select>
                           </div>
                           <FieldInput
-                            label="New Password"
+                            label={t('ManageUsers.newPassword')}
                             icon={<KeyRound className="w-3 h-3" />}
                             type="password"
                             value={editForm.password}
                             onChange={v => setEditForm(p => ({ ...p, password: v }))}
-                            placeholder="Leave blank to keep current"
+                            placeholder={t('ManageUsers.leaveBlankToKeepCurrent')}
                           />
                         </div>
 
@@ -326,7 +326,7 @@ export default function ManageUsersPage() {
 
                         {saveOk && (
                           <div className="flex items-center gap-2 text-emerald-700 text-xs bg-emerald-50 px-3.5 py-2.5 rounded-xl mb-3">
-                            <Check className="w-3.5 h-3.5" />Saved successfully!
+                            <Check className="w-3.5 h-3.5" />{t('ManageUsers.savedSuccessfully')}
                           </div>
                         )}
 
@@ -335,7 +335,7 @@ export default function ManageUsersPage() {
                             onClick={cancelEdit}
                             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors"
                           >
-                            <X className="w-4 h-4" />Cancel
+                            <X className="w-4 h-4" />{t('Common.cancel')}
                           </button>
                           <button
                             onClick={saveEdit}
@@ -343,7 +343,7 @@ export default function ManageUsersPage() {
                             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-60 rounded-xl transition-colors"
                           >
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            {saving ? 'Saving…' : 'Save Changes'}
+                            {saving ? t('Common.saving') : t('Common.saveChanges')}
                           </button>
                         </div>
                       </div>
@@ -359,8 +359,8 @@ export default function ManageUsersPage() {
                 <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
                   <Search className="w-6 h-6 text-slate-400" />
                 </div>
-                <p className="text-sm font-medium text-slate-500">Search for a user above</p>
-                <p className="text-xs text-slate-400 mt-1">Try searching by name or email address</p>
+                <p className="text-sm font-medium text-slate-500">{t('ManageUsers.searchHintTitle')}</p>
+                <p className="text-xs text-slate-400 mt-1">{t('ManageUsers.searchHintDesc')}</p>
               </div>
             )}
           </div>

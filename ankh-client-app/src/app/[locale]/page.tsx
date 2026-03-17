@@ -92,6 +92,7 @@ function ModalShell({ open, onClose, title, subtitle, wide, children }: {
 function ConfirmDialog({ open, title, message, onConfirm, onCancel }: {
   open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void
 }) {
+  const t = useTranslations()
   if (!open) return null
   return (
     <>
@@ -108,8 +109,8 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel }: {
             </div>
           </div>
           <div className="flex gap-3 justify-end">
-            <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Cancel</button>
-            <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors">Delete</button>
+            <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">{t('Common.cancel')}</button>
+            <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors">{t('Common.delete')}</button>
           </div>
         </div>
       </div>
@@ -179,6 +180,7 @@ function RecentLessons({ locale, formatName, onViewCustomer }: {
   formatName: (f: string, l: string) => string
   onViewCustomer: (id: string) => void
 }) {
+  const t = useTranslations()
   const [lessons, setLessons] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -193,11 +195,11 @@ function RecentLessons({ locale, formatName, onViewCustomer }: {
   if (!loading && lessons.length === 0) return null
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
       <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
         <div>
-          <h2 className="font-semibold text-gray-900 text-[15px]">Recent Lessons</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Latest recorded sessions</p>
+          <h2 className="font-semibold text-gray-900 text-[15px]">{t('HomePage.recentLessonsTitle')}</h2>
+          <p className="text-xs text-gray-400 mt-0.5">{t('HomePage.recentLessonsDesc')}</p>
         </div>
         <Activity className="w-4 h-4 text-gray-300" />
       </div>
@@ -234,7 +236,7 @@ function RecentLessons({ locale, formatName, onViewCustomer }: {
                   onClick={() => onViewCustomer(customer.id)}
                   className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
                 >
-                  <Eye className="w-3 h-3" />View
+                  <Eye className="w-3 h-3" />{t('Common.view')}
                 </button>
               </div>
             )
@@ -393,7 +395,7 @@ export default function HomePage() {
     } catch { setEditError('Unexpected error.') } finally { setEditLoading(false) }
   }
   const deleteCustomer = (id: string, name: string) => {
-    setConfirm({ title: 'Delete Customer', message: `Delete "${name}" and all their lesson records? This cannot be undone.`, fn: async () => {
+    setConfirm({ title: t('HomePage.deleteCustomerTitle'), message: t('HomePage.deleteCustomerMessage', { name }), fn: async () => {
       const token = Cookies.get('jwt-token')
       const r = await fetch(`/api/customers/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) { setResults(p => p.filter(c => c.id !== id)); setAllCustomers(p => p.filter(c => c.id !== id)); if (detailModal?.id === id) setDetailModal(null); fetchCount(); flash('Customer deleted.') }
@@ -411,7 +413,7 @@ export default function HomePage() {
     } catch { setAddUserError('Unexpected error.') } finally { setAddUserLoading(false) }
   }
   const deleteUser = (id: string, name: string) => {
-    setConfirm({ title: 'Delete User', message: `Delete user "${name}"?`, fn: async () => {
+    setConfirm({ title: t('HomePage.deleteUserTitle'), message: t('HomePage.deleteUserMessage', { name }), fn: async () => {
       const token = Cookies.get('jwt-token')
       const r = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) { setAllUsers(p => p.filter(u => u.id !== id)); flash('User deleted.') }
@@ -442,8 +444,7 @@ export default function HomePage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-        html, body, * { font-family: 'DM Sans', system-ui, sans-serif; box-sizing: border-box; }
+        html, body, * { box-sizing: border-box; }
         @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
         .fade-in { animation: fadeIn .2s ease-out; }
@@ -451,20 +452,20 @@ export default function HomePage() {
         ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 99px; }
       `}</style>
 
-      <div className="min-h-screen bg-[#f7f7f5]">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 via-[#f7f7f5] to-[#f7f7f5]">
         {toast && <Toast message={toast} onClose={() => setToast('')} />}
         <ConfirmDialog open={!!confirm} title={confirm?.title || ''} message={confirm?.message || ''} onConfirm={() => confirm?.fn()} onCancel={() => setConfirm(null)} />
 
         {/* ━━━━ HEADER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-40">
-          <div className="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between gap-4">
+          <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
                 <BookOpen className="w-3.5 h-3.5 text-white" />
               </div>
               <span className="font-semibold text-gray-900 text-[14px] hidden sm:block">{t('Common.appName')}</span>
               {customerCount !== null && isLoggedIn && (
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{customerCount} Customers</span>
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{t('HomePage.customersBadge', { count: customerCount })}</span>
               )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -492,7 +493,7 @@ export default function HomePage() {
         </header>
 
         {/* ━━━━ CONTENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <main className="max-w-6xl mx-auto px-5 py-8">
+        <main className="max-w-7xl mx-auto px-5 py-6">
 
           {/* Not logged in */}
           {!isLoggedIn && (
@@ -510,12 +511,23 @@ export default function HomePage() {
 
           {/* Logged in */}
           {isLoggedIn && (
-            <div className="space-y-5 fade-in">
+            <div className="space-y-6 fade-in">
 
               {/* ── Toolbar ── */}
-              <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4 space-y-3">
+              <div className="bg-white rounded-2xl border border-gray-100 px-5 py-5 shadow-sm space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h1 className="text-[15px] font-semibold text-gray-900">{t('HomePage.dashboardTitle')}</h1>
+                    <p className="text-xs text-gray-400 mt-0.5">{t('HomePage.dashboardDesc')}</p>
+                  </div>
+                  {currentUser && (
+                    <div className="hidden sm:flex items-center gap-2">
+                      <Badge variant={currentUser.role === 'MANAGER' ? 'blue' : 'green'}>{currentUser.role}</Badge>
+                    </div>
+                  )}
+                </div>
                 {/* Row 1 — primary actions, always visible */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <Btn onClick={() => router.push(`/${locale}/add-record`)}>
                     <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
                   </Btn>
@@ -529,26 +541,28 @@ export default function HomePage() {
 
                 {/* Row 2 — manager-only actions */}
                 {currentUser?.role === 'MANAGER' && (
-                  <div className="flex flex-wrap gap-2 pt-2.5 border-t border-gray-50">
+                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-50">
+                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mr-1.5">
+                      {t('HomePage.adminLabel')}
+                    </span>
                     <Btn variant="secondary"
                       className={showAllCustomers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
                       onClick={() => { const n = !showAllCustomers; setShowAllCustomers(n); if (n && !allCustomers.length) fetchAllCustomers(1) }}>
-                      <Users className="w-3.5 h-3.5" />All Customers
+                      <Users className="w-3.5 h-3.5" />{t('HomePage.allCustomersTitle')}
                     </Btn>
                     <Btn variant="secondary"
                       className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
                       onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
-                      <Users className="w-3.5 h-3.5" />All Users
+                      <Users className="w-3.5 h-3.5" />{t('HomePage.allUsersTitle')}
                     </Btn>
-                    <div className="w-px bg-gray-200 mx-0.5 self-stretch" />
                     <Btn variant="secondary" onClick={() => setAddUserModal(true)}>
-                      <UserPlus className="w-3.5 h-3.5" />Add User
+                      <UserPlus className="w-3.5 h-3.5" />{t('QuickActions.addUser')}
                     </Btn>
                     <Btn variant="secondary" onClick={() => setAddLocModal(true)}>
-                      <MapPin className="w-3.5 h-3.5" />Add Location
+                      <MapPin className="w-3.5 h-3.5" />{t('QuickActions.addLocation')}
                     </Btn>
                     <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}>
-                      <Settings className="w-3.5 h-3.5" />Manage Users
+                      <Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}
                     </Btn>
                   </div>
                 )}
@@ -559,7 +573,7 @@ export default function HomePage() {
                 <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden fade-in">
                   <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
                     <div>
-                      <h2 className="font-semibold text-gray-900 text-[15px]">All Users</h2>
+                      <h2 className="font-semibold text-gray-900 text-[15px]">{t('HomePage.allUsersTitle')}</h2>
                       <p className="text-xs text-gray-400 mt-0.5">{allUsers.length} total</p>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -571,7 +585,7 @@ export default function HomePage() {
                   {auLoading ? [...Array(4)].map((_, i) => <ShimmerRow key={i} />) : (
                     <div className="divide-y divide-gray-50">
                       {filteredUsers.length === 0
-                        ? <div className="px-6 py-10 text-center text-sm text-gray-400">No users found</div>
+                        ? <div className="px-6 py-10 text-center text-sm text-gray-400">{t('HomePage.noUsersFound')}</div>
                         : filteredUsers.map(u => (
                           <div key={u.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
                             <Avatar name={`${u.firstName} ${u.lastName}`} color="gray" />
@@ -597,7 +611,7 @@ export default function HomePage() {
                 <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden fade-in">
                   <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
                     <div>
-                      <h2 className="font-semibold text-gray-900 text-[15px]">All Customers</h2>
+                      <h2 className="font-semibold text-gray-900 text-[15px]">{t('HomePage.allCustomersTitle')}</h2>
                       <p className="text-xs text-gray-400 mt-0.5">Page {acPage}/{acTotalPages}{customerCount != null ? ` · ${customerCount} total` : ''}</p>
                     </div>
                     {acTotalPages > 1 && (
@@ -610,7 +624,7 @@ export default function HomePage() {
                   {acLoading ? [...Array(6)].map((_, i) => <ShimmerRow key={i} />) : (
                     <div className="divide-y divide-gray-50">
                       {allCustomers.length === 0
-                        ? <div className="px-6 py-10 text-center text-sm text-gray-400">No customers found</div>
+                        ? <div className="px-6 py-10 text-center text-sm text-gray-400">{t('HomePage.noCustomersFound')}</div>
                         : allCustomers.map(c => (
                           <div key={c.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
                             <Avatar name={`${c.firstName} ${c.lastName}`} color="green" />
@@ -683,10 +697,10 @@ export default function HomePage() {
                             {currentUser?.role === 'MANAGER' && (
                               <>
                                 <button onClick={e => { e.stopPropagation(); openEdit(c) }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                                  <Edit3 className="w-3 h-3" />Edit
+                                  <Edit3 className="w-3 h-3" />{t('Common.edit')}
                                 </button>
                                 <button onClick={e => { e.stopPropagation(); deleteCustomer(c.id, formatName(c.firstName, c.lastName)) }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
-                                  <Trash2 className="w-3 h-3" />Delete
+                                  <Trash2 className="w-3 h-3" />{t('Common.delete')}
                                 </button>
                               </>
                             )}
@@ -698,7 +712,7 @@ export default function HomePage() {
                           <div className="border-t border-gray-50 bg-gray-50/70 px-6 py-4 fade-in">
                             <div className="flex items-center justify-between mb-3">
                               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t('CustomerSearch.lessonDetails')}</p>
-                              <button onClick={() => fetchDetail(c.id)} className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors">View full history →</button>
+                              <button onClick={() => fetchDetail(c.id)} className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors">{t('HomePage.viewFullHistory')}</button>
                             </div>
                             {c.lessonParticipants && c.lessonParticipants.length > 0 ? (
                               <div className="space-y-2">
@@ -723,9 +737,9 @@ export default function HomePage() {
 
                     {totalPages > 1 && (
                       <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-50 bg-gray-50/50">
-                        <button disabled={searchPage === 1} onClick={() => setSearchPage(p => p - 1)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">← Previous</button>
-                        <span className="text-xs text-gray-400">Page {searchPage} of {totalPages} · {total} results</span>
-                        <button disabled={searchPage === totalPages} onClick={() => setSearchPage(p => p + 1)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">Next →</button>
+                        <button disabled={searchPage === 1} onClick={() => setSearchPage(p => p - 1)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">{t('HomePage.paginationPrev')}</button>
+                        <span className="text-xs text-gray-400">{t('HomePage.pageOf', { page: searchPage, pages: totalPages, total })}</span>
+                        <button disabled={searchPage === totalPages} onClick={() => setSearchPage(p => p + 1)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">{t('HomePage.paginationNext')}</button>
                       </div>
                     )}
                   </div>
@@ -738,7 +752,7 @@ export default function HomePage() {
                   </div>
                 )}
                 {!sLoading && searchTerm.length > 0 && searchTerm.length < 2 && (
-                  <div className="border-t border-gray-50 px-6 py-4 text-center text-xs text-gray-400">Type at least 2 characters to search</div>
+                  <div className="border-t border-gray-50 px-6 py-4 text-center text-xs text-gray-400">{t('HomePage.typeAtLeast2')}</div>
                 )}
               </div>
             </div>
@@ -751,24 +765,24 @@ export default function HomePage() {
       {/* Login */}
       <ModalShell open={showLogin} onClose={() => setShowLogin(false)} title={t('Auth.login')}>
         <form onSubmit={handleLogin} className="space-y-4">
-          <Field label={t('Auth.username')} type="text" value={loginForm.username} onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} placeholder="Enter your username" required autoFocus />
+          <Field label={t('Auth.username')} type="text" value={loginForm.username} onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} placeholder={t('Auth.usernamePlaceholder')} required autoFocus />
           <Field label={t('Auth.password')} type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} placeholder="••••••••" required />
           {loginError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{loginError}</div>}
           <Btn type="submit" disabled={loginLoading} className="w-full mt-2 justify-center !py-3">
-            {loginLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Signing in…</> : t('Auth.login')}
+            {loginLoading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('Auth.signingIn')}</> : t('Auth.login')}
           </Btn>
         </form>
       </ModalShell>
 
       {/* Customer detail */}
-      <ModalShell open={!!detailModal} onClose={() => setDetailModal(null)} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle="Customer Profile">
+      <ModalShell open={!!detailModal} onClose={() => setDetailModal(null)} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
         {detailModal && (
           <div className="space-y-5">
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: 'Email', value: detailModal.email },
-                { label: 'Phone', value: detailModal.phone || '—' },
-                { label: 'Since', value: detailModal.createdAt ? new Date(detailModal.createdAt).toLocaleDateString() : '—' }
+                { label: t('HomePage.email'), value: detailModal.email },
+                { label: t('HomePage.phone'), value: detailModal.phone || '—' },
+                { label: t('HomePage.since'), value: detailModal.createdAt ? new Date(detailModal.createdAt).toLocaleDateString() : '—' }
               ].map(({ label, value }) => (
                 <div key={label} className="bg-gray-50 rounded-xl p-3.5">
                   <p className="text-[11px] text-gray-400 mb-1 uppercase tracking-wide font-medium">{label}</p>
@@ -802,12 +816,12 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
-              ) : <p className="text-sm text-gray-400 py-4 text-center">No lesson records found.</p>}
+              ) : <p className="text-sm text-gray-400 py-4 text-center">{t('HomePage.noLessonRecordsFound')}</p>}
             </div>
             {currentUser?.role === 'MANAGER' && (
               <div className="flex gap-2 pt-2 border-t border-gray-100">
-                <Btn variant="secondary" size="sm" onClick={() => { openEdit(detailModal); setDetailModal(null) }}><Edit3 className="w-3 h-3" />Edit</Btn>
-                <Btn variant="danger" size="sm" onClick={() => { deleteCustomer(detailModal.id, formatName(detailModal.firstName, detailModal.lastName)); setDetailModal(null) }}><Trash2 className="w-3 h-3" />Delete</Btn>
+                <Btn variant="secondary" size="sm" onClick={() => { openEdit(detailModal); setDetailModal(null) }}><Edit3 className="w-3 h-3" />{t('Common.edit')}</Btn>
+                <Btn variant="danger" size="sm" onClick={() => { deleteCustomer(detailModal.id, formatName(detailModal.firstName, detailModal.lastName)); setDetailModal(null) }}><Trash2 className="w-3 h-3" />{t('Common.delete')}</Btn>
               </div>
             )}
           </div>
@@ -815,18 +829,18 @@ export default function HomePage() {
       </ModalShell>
 
       {/* Edit customer */}
-      <ModalShell open={!!editModal} onClose={() => setEditModal(null)} title="Edit Customer">
+      <ModalShell open={!!editModal} onClose={() => setEditModal(null)} title={t('HomePage.customerEditTitle')}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="First Name" value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
-            <Field label="Last Name" value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
+            <Field label={t('HomePage.firstName')} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
+            <Field label={t('HomePage.lastName')} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
           </div>
-          <Field label="Email" type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
-          <Field label="Phone" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Optional" />
+          <Field label={t('HomePage.email')} type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
+          <Field label={t('HomePage.phone')} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder={t('Common.optional')} />
           {editError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{editError}</div>}
           <div className="flex gap-2 pt-1">
-            <Btn variant="secondary" className="flex-1 justify-center" onClick={() => setEditModal(null)}>Cancel</Btn>
-            <Btn disabled={editLoading} className="flex-1 justify-center" onClick={saveEdit}>{editLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : 'Save Changes'}</Btn>
+            <Btn variant="secondary" className="flex-1 justify-center" onClick={() => setEditModal(null)}>{t('Common.cancel')}</Btn>
+            <Btn disabled={editLoading} className="flex-1 justify-center" onClick={saveEdit}>{editLoading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('Common.saving')}</> : t('Common.saveChanges')}</Btn>
           </div>
         </div>
       </ModalShell>
@@ -836,10 +850,10 @@ export default function HomePage() {
         {userModal && (
           <div className="divide-y divide-gray-50">
             {[
-              { label: 'Username', val: <span className="font-mono text-sm">{userModal.username}</span> },
-              { label: 'Email', val: <span className="text-sm break-all">{userModal.email}</span> },
-              { label: 'Role', val: <Badge variant={userModal.role === 'MANAGER' ? 'blue' : 'green'}>{userModal.role}</Badge> },
-              { label: 'Created', val: <span className="text-sm">{new Date(userModal.createdAt || '').toLocaleString()}</span> },
+              { label: t('HomePage.username'), val: <span className="font-mono text-sm">{userModal.username}</span> },
+              { label: t('HomePage.email'), val: <span className="text-sm break-all">{userModal.email}</span> },
+              { label: t('HomePage.role'), val: <Badge variant={userModal.role === 'MANAGER' ? 'blue' : 'green'}>{userModal.role}</Badge> },
+              { label: t('HomePage.created'), val: <span className="text-sm">{new Date(userModal.createdAt || '').toLocaleString()}</span> },
             ].map(({ label, val }) => (
               <div key={label} className="flex items-center gap-4 py-3">
                 <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide w-20 flex-shrink-0">{label}</span>
@@ -851,30 +865,30 @@ export default function HomePage() {
       </ModalShell>
 
       {/* Add user */}
-      <ModalShell open={addUserModal} onClose={() => setAddUserModal(false)} title="Add New User">
+      <ModalShell open={addUserModal} onClose={() => setAddUserModal(false)} title={t('HomePage.addNewUserTitle')}>
         <form onSubmit={handleAddUser} className="space-y-3.5">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="First Name" value={addUserForm.firstName} onChange={e => setAddUserForm({ ...addUserForm, firstName: e.target.value })} required />
-            <Field label="Last Name" value={addUserForm.lastName} onChange={e => setAddUserForm({ ...addUserForm, lastName: e.target.value })} required />
+            <Field label={t('HomePage.firstName')} value={addUserForm.firstName} onChange={e => setAddUserForm({ ...addUserForm, firstName: e.target.value })} required />
+            <Field label={t('HomePage.lastName')} value={addUserForm.lastName} onChange={e => setAddUserForm({ ...addUserForm, lastName: e.target.value })} required />
           </div>
-          <Field label="Email" type="email" value={addUserForm.email} onChange={e => setAddUserForm({ ...addUserForm, email: e.target.value })} required />
-          <Field label="Username" value={addUserForm.username} onChange={e => setAddUserForm({ ...addUserForm, username: e.target.value })} required />
-          <Field label="Password" type="password" value={addUserForm.password} onChange={e => setAddUserForm({ ...addUserForm, password: e.target.value })} required />
-          <FieldSelect label="Role" value={addUserForm.role} onChange={e => setAddUserForm({ ...addUserForm, role: e.target.value as UserRole })}>
-            <option value="INSTRUCTOR">Instructor</option>
-            <option value="MANAGER">Manager</option>
+          <Field label={t('HomePage.email')} type="email" value={addUserForm.email} onChange={e => setAddUserForm({ ...addUserForm, email: e.target.value })} required />
+          <Field label={t('HomePage.username')} value={addUserForm.username} onChange={e => setAddUserForm({ ...addUserForm, username: e.target.value })} required />
+          <Field label={t('Dialogs.password')} type="password" value={addUserForm.password} onChange={e => setAddUserForm({ ...addUserForm, password: e.target.value })} required />
+          <FieldSelect label={t('HomePage.role')} value={addUserForm.role} onChange={e => setAddUserForm({ ...addUserForm, role: e.target.value as UserRole })}>
+            <option value="INSTRUCTOR">{t('Dialogs.instructor')}</option>
+            <option value="MANAGER">{t('Dialogs.manager')}</option>
           </FieldSelect>
           {addUserError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{addUserError}</div>}
-          <Btn type="submit" disabled={addUserLoading} className="w-full justify-center !py-3 mt-1">{addUserLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating…</> : 'Create User'}</Btn>
+          <Btn type="submit" disabled={addUserLoading} className="w-full justify-center !py-3 mt-1">{addUserLoading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('AddRecord.creating')}</> : t('HomePage.createUser')}</Btn>
         </form>
       </ModalShell>
 
       {/* Add location */}
-      <ModalShell open={addLocModal} onClose={() => setAddLocModal(false)} title="Add New Location">
+      <ModalShell open={addLocModal} onClose={() => setAddLocModal(false)} title={t('HomePage.addNewLocationTitle')}>
         <form onSubmit={addLocation} className="space-y-4">
-          <Field label="Location Name" value={locName} onChange={e => setLocName(e.target.value)} placeholder="e.g. Studio A, Room 201" required />
+          <Field label={t('HomePage.locationName')} value={locName} onChange={e => setLocName(e.target.value)} placeholder={t('HomePage.locationNamePlaceholder')} required />
           {locError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{locError}</div>}
-          <Btn type="submit" disabled={locLoading} className="w-full justify-center !py-3">{locLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating…</> : 'Create Location'}</Btn>
+          <Btn type="submit" disabled={locLoading} className="w-full justify-center !py-3">{locLoading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('AddRecord.creating')}</> : t('HomePage.createLocation')}</Btn>
         </form>
       </ModalShell>
 
@@ -908,19 +922,19 @@ export default function HomePage() {
                 ))}
               </div>
               <p className="text-[11px] text-gray-400 mt-2">
-                Tip: Header names are case-insensitive, and common aliases are accepted.
+                {t('HomePage.importTip')}
               </p>
             </div>
           </div>
           <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 hover:border-gray-300 cursor-pointer transition-colors">
             <Upload className="w-5 h-5 text-gray-400 mb-2" />
-            <span className="text-sm font-medium text-gray-600">{uploadFile ? uploadFile.name : 'Click to select file'}</span>
-            <span className="text-xs text-gray-400 mt-0.5">CSV, XLSX, XLS supported</span>
+            <span className="text-sm font-medium text-gray-600">{uploadFile ? uploadFile.name : t('HomePage.clickToSelectFile')}</span>
+            <span className="text-xs text-gray-400 mt-0.5">{t('HomePage.fileTypesSupported')}</span>
             <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { setUploadFile(e.target.files?.[0] || null); setUploadErr(''); setUploadMsg('') }} />
           </label>
           {uploadErr && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{uploadErr}</div>}
           {uploadMsg && <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 px-3.5 py-2.5 rounded-xl"><Activity className="w-4 h-4 flex-shrink-0" />{uploadMsg}</div>}
-          <Btn onClick={handleUpload} disabled={uploading || !uploadFile} className="w-full justify-center !py-3">{uploading ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading…</> : 'Upload & Import'}</Btn>
+          <Btn onClick={handleUpload} disabled={uploading || !uploadFile} className="w-full justify-center !py-3">{uploading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('HomePage.importing')}</> : t('HomePage.uploadAndImport')}</Btn>
         </div>
       </ModalShell>
     </>
