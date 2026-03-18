@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import bcrypt from 'bcryptjs'
 
 const DEFAULT_PASSWORD = 'Pw@123'
+const BATCH_SIZE = 5000 // Increased batch size
 
 // Required headers (canonical, case-insensitive)
 const REQUIRED_HEADERS = [
@@ -67,7 +68,7 @@ const HEADER_ALIASES: Record<string, string> = {
 
 const normalizeHeader = (header: string) =>
   header
-    .replace(/\u00a0/g, ' ') // normalize non-breaking spaces
+    .replace(/\u00a0/g, ' ')
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ')
@@ -101,12 +102,10 @@ const buildInstructorUsername = (name: string) => {
   return `${compact}_${hashString(name)}`
 }
 
-// Parse dates from either ISO-like strings or Excel serial numbers
 const parseLessonDate = (value: string): Date | null => {
   const trimmed = value?.toString().trim()
   if (!trimmed) return null
 
-  // Excel serial dates are numbers (days since 1899-12-31, with 1900 leap bug)
   const numeric = Number(trimmed)
   if (!Number.isNaN(numeric) && numeric > 0) {
     const excelEpoch = new Date(Date.UTC(1899, 11, 30))
@@ -214,8 +213,9 @@ export async function POST(request: NextRequest) {
       courseCompletionStatus: string
     }> = []
 
+    // First pass: validate all rows
     for (let i = 0; i < data.length; i++) {
-      const rowNumber = i + 2 // +2 because CSV is 1-indexed and we have headers
+      const rowNumber = i + 2
 
       const rawRow = data[i] as Record<string, any>
       const row: Record<string, string> = {}
@@ -264,9 +264,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (validRows.length > 0) {
-      // Larger batches reduce round-trips dramatically for large files
-      const batchSize = 2000
-
+      // Prepare data structures
       const customers = new Map<string, { id: string; name: string }>()
       const instructors = new Map<string, { email: string; name: string }>()
       const locations = new Set<string>()
@@ -281,13 +279,13 @@ export async function POST(request: NextRequest) {
 
       validRows.forEach(row => {
         customers.set(row.customerId, { id: row.customerId, name: row.customerName })
-
+        
         const instructorEmail = buildInstructorEmail(row.instructorName)
         instructors.set(instructorEmail, { email: instructorEmail, name: row.instructorName })
-
+        
         const normalizedLocation = row.locationName?.trim() || 'Default Location'
         locations.add(normalizedLocation)
-
+        
         if (!lessons.has(row.lessonId)) {
           lessons.set(row.lessonId, {
             id: row.lessonId,
@@ -310,129 +308,139 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      const locationNames = Array.from(locations)
-      // Locations can be bulk inserted; we don't need per-row upserts.
-      // `skipDuplicates` relies on the unique constraint on `Location.name`.
-      for (const chunk of chunkArray(locationNames, 1000)) {
-        await prisma.location.createMany({
-          data: chunk.map(name => ({ name })),
+      // Run all database operations in parallel where possible
+      const [locationRecords, existingInstructors, existingCustomers] = await Promise.all([
+        // Create locations
+        prisma.location.createMany({
+          data: Array.from(locations).map(name => ({ name })),
+          skipDuplicates: true
+        }).then(() => 
+          prisma.location.findMany({
+            where: { name: { in: Array.from(locations) } }
+          })
+        ),
+        
+        // Check existing instructors
+        prisma.user.findMany({
+          where: { 
+            email: { 
+              in: Array.from(instructors.values()).map(i => i.email) 
+            } 
+          },
+          select: { email: true }
+        }),
+        
+        // Check existing customers
+        prisma.customer.findMany({
+          where: { 
+            id: { 
+              in: Array.from(customers.values()).map(c => c.id) 
+            } 
+          },
+          select: { id: true }
+        })
+      ])
+
+      // Create location map
+      const locationIdByName = new Map(locationRecords.map(loc => [loc.name, loc.id]))
+
+      // Create missing instructors
+      const existingInstructorEmailSet = new Set(existingInstructors.map(u => u.email))
+      const missingInstructors = Array.from(instructors.values())
+        .filter(i => !existingInstructorEmailSet.has(i.email))
+      
+      if (missingInstructors.length > 0) {
+        const hashedDefaultPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10)
+        await prisma.user.createMany({
+          data: missingInstructors.map(instructor => {
+            const [firstName, ...rest] = instructor.name.split(' ')
+            return {
+              username: buildInstructorUsername(instructor.name),
+              password: hashedDefaultPassword,
+              role: 'INSTRUCTOR',
+              firstName: firstName || '',
+              lastName: rest.join(' ') || '',
+              email: instructor.email
+            }
+          }),
           skipDuplicates: true
         })
       }
 
-      const locationRecords = await prisma.location.findMany({
-        where: { name: { in: locationNames } }
-      })
-      const locationIdByName = new Map(locationRecords.map(loc => [loc.name, loc.id]))
-
-      const instructorRecords = Array.from(instructors.values())
-      const instructorEmails = instructorRecords.map(record => record.email)
-      const existingInstructors = await prisma.user.findMany({
-        where: { email: { in: instructorEmails } },
-        select: { email: true }
-      })
-      const existingInstructorEmailSet = new Set(existingInstructors.map(u => u.email))
-
-      const missingInstructors = instructorRecords.filter(i => !existingInstructorEmailSet.has(i.email))
-      if (missingInstructors.length > 0) {
-        // Hash once; imported users share the default password
-        const hashedDefaultPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10)
-        for (const chunk of chunkArray(missingInstructors, 1000)) {
-          await prisma.user.createMany({
-            data: chunk.map(instructor => {
-              const [firstName, ...rest] = instructor.name.split(' ')
-              return {
-                username: buildInstructorUsername(instructor.name),
-                password: hashedDefaultPassword,
-                role: 'INSTRUCTOR',
-                firstName: firstName || '',
-                lastName: rest.join(' ') || '',
-                email: instructor.email
-              }
-            }),
-            skipDuplicates: true
-          })
-        }
-      }
-
+      // Get all instructor IDs
       const instructorUsers = await prisma.user.findMany({
-        where: { email: { in: instructorEmails } }
+        where: { email: { in: Array.from(instructors.values()).map(i => i.email) } }
       })
       const instructorIdByEmail = new Map(instructorUsers.map(user => [user.email, user.id]))
 
-      const customerRecords = Array.from(customers.values())
-      const customerIds = customerRecords.map(c => c.id)
-      const existingCustomers = await prisma.customer.findMany({
-        where: { id: { in: customerIds } },
-        select: { id: true }
-      })
+      // Create missing customers
       const existingCustomerIdSet = new Set(existingCustomers.map(c => c.id))
-      const missingCustomers = customerRecords.filter(c => !existingCustomerIdSet.has(c.id))
+      const missingCustomers = Array.from(customers.values())
+        .filter(c => !existingCustomerIdSet.has(c.id))
+      
       if (missingCustomers.length > 0) {
-        for (const chunk of chunkArray(missingCustomers, 1000)) {
-          await prisma.customer.createMany({
-            data: chunk.map(customer => {
-              const [firstName, ...rest] = customer.name.split(' ')
-              return {
-                id: customer.id,
-                firstName: firstName || '',
-                lastName: rest.join(' ') || '',
-                email: `${customer.id}@abc.com`
-              }
-            }),
-            skipDuplicates: true
-          })
-        }
+        await prisma.customer.createMany({
+          data: missingCustomers.map(customer => {
+            const [firstName, ...rest] = customer.name.split(' ')
+            return {
+              id: customer.id,
+              firstName: firstName || '',
+              lastName: rest.join(' ') || '',
+              email: `${customer.id}@abc.com`
+            }
+          }),
+          skipDuplicates: true
+        })
       }
 
+      // Bulk upsert lessons
       const lessonRecords = Array.from(lessons.values())
-      await Promise.all(
-        chunkArray(lessonRecords, batchSize).map(chunk =>
-          prisma.$transaction(
-            chunk.map(lesson => {
-              const instructorId = instructorIdByEmail.get(lesson.instructorEmail)
-              const locationId = locationIdByName.get(lesson.locationName)
-              if (!instructorId || !locationId) {
-                throw new Error('Missing instructor or location during lesson import')
+      const lessonChunks = chunkArray(lessonRecords, BATCH_SIZE)
+      
+      for (const chunk of lessonChunks) {
+        await prisma.$transaction(
+          chunk.map(lesson => {
+            const instructorId = instructorIdByEmail.get(lesson.instructorEmail)
+            const locationId = locationIdByName.get(lesson.locationName)
+            if (!instructorId || !locationId) {
+              throw new Error('Missing instructor or location during lesson import')
+            }
+            return prisma.lesson.upsert({
+              where: { id: lesson.id },
+              update: {
+                lessonType: lesson.lessonType || 'Group',
+                instructorId,
+                locationId,
+                lessonContent: lesson.lessonContent || null,
+                createdAt: lesson.lessonDate
+              },
+              create: {
+                id: lesson.id,
+                lessonType: lesson.lessonType || 'Group',
+                instructorId,
+                locationId,
+                lessonContent: lesson.lessonContent || null,
+                createdAt: lesson.lessonDate
               }
-              return prisma.lesson.upsert({
-                where: { id: lesson.id },
-                update: {
-                  lessonType: lesson.lessonType || 'Group',
-                  instructorId,
-                  locationId,
-                  lessonContent: lesson.lessonContent || null,
-                  createdAt: lesson.lessonDate
-                },
-                create: {
-                  id: lesson.id,
-                  lessonType: lesson.lessonType || 'Group',
-                  instructorId,
-                  locationId,
-                  lessonContent: lesson.lessonContent || null,
-                  createdAt: lesson.lessonDate
-                }
-              })
             })
-          )
-        )
-      )
-
-      // Bulk insert lessonParticipants, skip duplicates
-      await Promise.all(
-        chunkArray(validRows, batchSize).map(chunk =>
-          prisma.lessonParticipant.createMany({
-            data: chunk.map(row => ({
-              customerId: row.customerId,
-              lessonId: row.lessonId,
-              customerSymptoms: row.customerSymptoms || null,
-              customerImprovements: row.courseCompletionStatus || null,
-              status: 'attended'
-            })),
-            skipDuplicates: true
           })
         )
-      )
+      }
+
+      // Bulk insert lessonParticipants
+      const participantChunks = chunkArray(validRows, BATCH_SIZE)
+      for (const chunk of participantChunks) {
+        await prisma.lessonParticipant.createMany({
+          data: chunk.map(row => ({
+            customerId: row.customerId,
+            lessonId: row.lessonId,
+            customerSymptoms: row.customerSymptoms || null,
+            customerImprovements: row.courseCompletionStatus || null,
+            status: 'attended'
+          })),
+          skipDuplicates: true
+        })
+      }
 
       processedCount = validRows.length
     }

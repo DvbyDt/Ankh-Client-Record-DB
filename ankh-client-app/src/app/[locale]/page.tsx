@@ -461,9 +461,7 @@ export default function HomePage() {
             setUploadMsg(data.message || 'Imported!')
             setUploadFile(null)
             fetchCount()
-            fetchAllCustomers(1)
-            fetchAllUsers()
-            setUploadModal(false) // Close dialog on success
+            if (showAllCustomers) fetchAllCustomers(1)
           } else {
             setUploadErr(data.error || 'Upload failed.')
           }
@@ -578,7 +576,7 @@ export default function HomePage() {
                   )}
                 </div>
                 {/* Row 1 — primary actions, always visible */}
-                <div className="flex flex-wrap items-center gap-2.5 mb-4">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <Btn onClick={() => router.push(`/${locale}/add-record`)}>
                     <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
                   </Btn>
@@ -590,37 +588,32 @@ export default function HomePage() {
                   </Btn>
                 </div>
 
-                {/* Separator and Row 2 — manager-only actions */}
+                {/* Row 2 — manager-only actions */}
                 {currentUser?.role === 'MANAGER' && (
-                  <>
-                    <div className="flex justify-center my-2">
-                      <div className="w-24 h-1 rounded-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200" />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-                      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mr-1.5">
-                        {t('HomePage.adminLabel')}
-                      </span>
-                      <Btn variant="secondary"
-                        className={showAllCustomers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
-                        onClick={() => { const n = !showAllCustomers; setShowAllCustomers(n); if (n && !allCustomers.length) fetchAllCustomers(1) }}>
-                        <Users className="w-3.5 h-3.5" />{t('HomePage.allCustomersTitle')}
-                      </Btn>
-                      <Btn variant="secondary"
-                        className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
-                        onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
-                        <Users className="w-3.5 h-3.5" />{t('HomePage.allUsersTitle')}
-                      </Btn>
-                      <Btn variant="secondary" onClick={() => setAddUserModal(true)}>
-                        <UserPlus className="w-3.5 h-3.5" />{t('QuickActions.addUser')}
-                      </Btn>
-                      <Btn variant="secondary" onClick={() => setAddLocModal(true)}>
-                        <MapPin className="w-3.5 h-3.5" />{t('QuickActions.addLocation')}
-                      </Btn>
-                      <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}>
-                        <Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}
-                      </Btn>
-                    </div>
-                  </>
+                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-50">
+                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mr-1.5">
+                      {t('HomePage.adminLabel')}
+                    </span>
+                    <Btn variant="secondary"
+                      className={showAllCustomers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
+                      onClick={() => { const n = !showAllCustomers; setShowAllCustomers(n); if (n && !allCustomers.length) fetchAllCustomers(1) }}>
+                      <Users className="w-3.5 h-3.5" />{t('HomePage.allCustomersTitle')}
+                    </Btn>
+                    <Btn variant="secondary"
+                      className={showAllUsers ? '!bg-gray-900 !text-white !border-gray-900' : ''}
+                      onClick={() => { const n = !showAllUsers; setShowAllUsers(n); if (n && !allUsers.length) fetchAllUsers() }}>
+                      <Users className="w-3.5 h-3.5" />{t('HomePage.allUsersTitle')}
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => setAddUserModal(true)}>
+                      <UserPlus className="w-3.5 h-3.5" />{t('QuickActions.addUser')}
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => setAddLocModal(true)}>
+                      <MapPin className="w-3.5 h-3.5" />{t('QuickActions.addLocation')}
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}>
+                      <Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}
+                    </Btn>
+                  </div>
                 )}
               </div>
 
