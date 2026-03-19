@@ -2,7 +2,6 @@ import { inngest } from '../client'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 export interface ImportRow {
   customerId: string
   customerName: string
@@ -16,7 +15,6 @@ export interface ImportRow {
   courseCompletionStatus?: string
 }
 
-// ── Helper: update job progress in DB ────────────────────────────────────────
 async function setProgress(jobId: string, progress: number, message: string, status = 'processing') {
   await prisma.importJob.update({
     where: { id: jobId },
@@ -24,21 +22,28 @@ async function setProgress(jobId: string, progress: number, message: string, sta
   })
 }
 
-// ── The Inngest function ───────────────────────────────────────────────────────
-// Each step.run() block is independently retried on failure.
-// The whole job can be resumed from the last successful step if Vercel restarts.
 export const processImport = inngest.createFunction(
   {
     id: 'process-excel-import',
     retries: 2,
     timeouts: { finish: '30m' },
   },
-  async ({ event, step }: { event: { data: { jobId: string; rows: ImportRow[] } }; step: { run: <T>(name: string, fn: () => Promise<T>) => Promise<T> } }) => {
-    const { jobId, rows }: { jobId: string; rows: ImportRow[] } = event.data
+  async ({ event, step }: { event: { data: { jobId: string } }; step: any }) => {
+    const { jobId } = event.data  // ← only jobId comes from the event now
 
-    // ── Step 1: Validate ─────────────────────────────────────────────────────
-    const validRows = await step.run('validate-rows', async () => {
-      await setProgress(jobId, 5, `Validating ${rows.length} rows…`)
+    // ── Step 1: Load rows from DB + validate ─────────────────────────────────
+    const validRows = await step.run('load-and-validate', async () => {
+      await setProgress(jobId, 5, 'Loading data…')
+
+      // Read the rows we stored in the DB (avoids Inngest 256KB limit)
+      const job = await prisma.importJob.findUnique({
+        where: { id: jobId },
+        select: { rowsJson: true, totalRows: true },
+      })
+
+      if (!job?.rowsJson) throw new Error('Job rows not found in database')
+
+      const rows: ImportRow[] = JSON.parse(job.rowsJson as string)
 
       const valid: ImportRow[] = []
       const errors: string[] = []
@@ -63,9 +68,9 @@ export const processImport = inngest.createFunction(
     await step.run('upsert-locations', async () => {
       await setProgress(jobId, 25, 'Setting up locations…')
 
-      const names: string[] = [...new Set(validRows.valid.map(r => typeof r.locationName === 'string' ? r.locationName.trim() : 'Default Location'))]
+      const names = [...new Set(validRows.valid.map((r: ImportRow) => typeof r.locationName === 'string' ? r.locationName.trim() : 'Default Location'))]
       await prisma.$transaction(
-        names.map(name => prisma.location.upsert({ where: { name }, update: {}, create: { name } }))
+        (names as string[]).map((name: string) => prisma.location.upsert({ where: { name }, update: {}, create: { name } }))
       )
     })
 
@@ -74,9 +79,9 @@ export const processImport = inngest.createFunction(
       await setProgress(jobId, 38, 'Setting up instructors…')
 
       const hashedPw = await bcrypt.hash('DefaultPass123!', 10)
-      const uniqueInstructors: Map<string, string> = new Map()
+      const uniqueInstructors = new Map<string, string>()
 
-      for (const row of validRows.valid) {
+      for (const row of validRows.valid as ImportRow[]) {
         const email = `${row.instructorName.replace(/\s+/g, '.').toLowerCase()}@instructor.local`
         uniqueInstructors.set(email, typeof row.instructorName === 'string' ? row.instructorName.trim() : '')
       }
@@ -103,17 +108,17 @@ export const processImport = inngest.createFunction(
         where: { email: { in: [...uniqueInstructors.keys()] } },
         select: { id: true, email: true },
       })
-      return Object.fromEntries(records.map(u => [u.email, u.id])) as Record<string, string>
+      return Object.fromEntries(records.map(u => [u.email, u.id]))
     })
 
     // ── Step 4: Upsert customers ─────────────────────────────────────────────
     await step.run('upsert-customers', async () => {
       await setProgress(jobId, 52, 'Importing customers…')
 
-      const uniqueCustomers: Map<string, { firstName: string; lastName: string; email: string }> = new Map()
+      const uniqueCustomers = new Map<string, { firstName: string; lastName: string; email: string }>()
       for (const row of validRows.valid) {
         if (!uniqueCustomers.has(row.customerId)) {
-          const parts = typeof row.customerName === 'string' ? row.customerName.trim().split(/\s+/) : ['']
+          const parts = row.customerName.trim().split(/\s+/)
           uniqueCustomers.set(row.customerId, {
             firstName: parts[0] || '',
             lastName: parts.slice(1).join(' ') || '',
@@ -133,22 +138,26 @@ export const processImport = inngest.createFunction(
       )
     })
 
-    // ── Step 5: Upsert lessons ───────────────────────────────────────────────
+    // ── Step 5: Fetch location IDs ───────────────────────────────────────────
     const locationIdByName = await step.run('fetch-location-ids', async () => {
-      const names: string[] = [...new Set(validRows.valid.map(r => typeof r.locationName === 'string' ? r.locationName.trim() : 'Default Location'))]
-      const records = await prisma.location.findMany({ where: { name: { in: names } }, select: { id: true, name: true } })
+      const names = [...new Set(validRows.valid.map((r: ImportRow) => typeof r.locationName === 'string' ? r.locationName.trim() : 'Default Location'))] as string[];
+      const records = await prisma.location.findMany({
+        where: { name: { in: names } },
+        select: { id: true, name: true },
+      })
       return Object.fromEntries(records.map(l => [l.name, l.id]))
     })
 
+    // ── Step 6: Upsert lessons ───────────────────────────────────────────────
     await step.run('upsert-lessons', async () => {
       await setProgress(jobId, 68, 'Importing lessons…')
 
-      const uniqueLessons: Map<string, {
+      const uniqueLessons = new Map<string, {
         instructorEmail: string; locationName: string
         lessonType: string; lessonContent: string | null; lessonDate: Date
-      }> = new Map()
+      }>()
 
-      for (const row of validRows.valid) {
+      for (const row of validRows.valid as ImportRow[]) {
         if (!uniqueLessons.has(row.lessonId)) {
           uniqueLessons.set(row.lessonId, {
             instructorEmail: `${row.instructorName.replace(/\s+/g, '.').toLowerCase()}@instructor.local`,
@@ -166,19 +175,32 @@ export const processImport = inngest.createFunction(
         if (!instructorId || !locationId) return []
         return [prisma.lesson.upsert({
           where: { id },
-          update: { lessonType: lesson.lessonType, lessonContent: lesson.lessonContent, createdAt: lesson.lessonDate, instructorId, locationId },
-          create: { id, lessonType: lesson.lessonType, lessonContent: lesson.lessonContent, instructorId, locationId, createdAt: lesson.lessonDate },
+          update: {
+            lessonType: lesson.lessonType,
+            lessonContent: lesson.lessonContent,
+            createdAt: lesson.lessonDate,
+            instructorId,
+            locationId,
+          },
+          create: {
+            id,
+            lessonType: lesson.lessonType,
+            lessonContent: lesson.lessonContent,
+            instructorId,
+            locationId,
+            createdAt: lesson.lessonDate,
+          },
         })]
-      }) as Array<ReturnType<typeof prisma.lesson.upsert>>
+      })
 
       if (upserts.length > 0) await prisma.$transaction(upserts)
     })
 
-    // ── Step 6: Upsert participants ──────────────────────────────────────────
+    // ── Step 7: Upsert participants ──────────────────────────────────────────
     const processedCount = await step.run('upsert-participants', async () => {
       await setProgress(jobId, 82, 'Linking customers to lessons…')
 
-      const upserts = validRows.valid.map(row =>
+      const upserts = (validRows.valid as ImportRow[]).map((row: ImportRow) =>
         prisma.lessonParticipant.upsert({
           where: { customerId_lessonId: { customerId: row.customerId, lessonId: row.lessonId } },
           update: {
@@ -199,11 +221,12 @@ export const processImport = inngest.createFunction(
       return upserts.length
     })
 
-    // ── Step 7: Mark complete ────────────────────────────────────────────────
+    // ── Step 8: Clean up + mark complete ─────────────────────────────────────
     await step.run('mark-complete', async () => {
       const errorSummary = validRows.errors.length > 0
         ? ` (${validRows.errors.length} rows skipped)`
         : ''
+
       await prisma.importJob.update({
         where: { id: jobId },
         data: {
@@ -211,6 +234,7 @@ export const processImport = inngest.createFunction(
           progress: 100,
           message: `Successfully imported ${processedCount} records${errorSummary}`,
           rowErrors: validRows.errors,
+          rowsJson: null,  // ← clear the raw data once done, saves DB space
           updatedAt: new Date(),
         },
       })
