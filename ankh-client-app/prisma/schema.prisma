@@ -104,3 +104,17 @@ model LessonParticipant {
   @@index([lessonId])
   @@map("lesson_participants")
 }
+
+// schema.prisma addition:
+model ImportJob {
+  id        String   @id @default(cuid())
+  status    String   @default("queued")   // queued | processing | complete | failed
+  progress  Int      @default(0)           // 0-100
+  message   String   @default("")
+  totalRows Int      @default(0)
+  rowErrors Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("import_jobs")
+}
+
