@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -58,7 +55,6 @@ model Customer {
 
   lessonParticipants LessonParticipant[]
 
-  // Performance indexes for search and soft-delete filtering
   @@index([firstName])
   @@index([lastName])
   @@index([deletedAt])
@@ -67,17 +63,17 @@ model Customer {
 }
 
 model Lesson {
-  id                    String   @id @default(cuid())
-  lessonType            String   // 'Group' or 'Individual'
-  lessonContent         String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id            String   @id @default(cuid())
+  lessonType    String
+  lessonContent String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   instructorId String
   locationId   String
 
-  instructor         User               @relation(fields: [instructorId], references: [id])
-  location           Location           @relation(fields: [locationId], references: [id])
+  instructor         User                @relation(fields: [instructorId], references: [id])
+  location           Location            @relation(fields: [locationId], references: [id])
   lessonParticipants LessonParticipant[]
 
   @@index([instructorId])
@@ -105,16 +101,16 @@ model LessonParticipant {
   @@map("lesson_participants")
 }
 
-// schema.prisma addition:
 model ImportJob {
   id        String   @id @default(cuid())
-  status    String   @default("queued")   // queued | processing | complete | failed
-  progress  Int      @default(0)           // 0-100
+  status    String   @default("queued")
+  progress  Int      @default(0)
   message   String   @default("")
   totalRows Int      @default(0)
   rowErrors Json     @default("[]")
+  rowsJson  String?  // Temporarily stores raw parsed rows; cleared after processing
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@map("import_jobs")
 }
-

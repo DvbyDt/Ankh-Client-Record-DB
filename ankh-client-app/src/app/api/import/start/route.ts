@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { inngest } from '@/inngest/client'
 import * as XLSX from 'xlsx'
 
-// ── Header aliases (same as before) ──────────────────────────────────────────
 const ALIASES: Record<string, string> = {
   'customer id': 'customerId', 'customerid': 'customerId',
   'customer name': 'customerName', 'customername': 'customerName',
@@ -44,7 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File must be CSV, XLSX, or XLS' }, { status: 400 })
     }
 
-    // ── Parse file on the server ──────────────────────────────────────────────
+    // ── Parse file ────────────────────────────────────────────────────────────
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -63,8 +62,9 @@ export async function POST(request: NextRequest) {
         norm[canonical] = String(v ?? '').trim()
       }
 
-      // Handle Excel serial date stored as number (SheetJS gives it raw)
-      const rawDate = raw['Lesson Date'] ?? raw['lesson date'] ?? raw['LESSON DATE'] ?? raw[Object.keys(raw).find(k => k.toLowerCase().includes('date')) ?? '']
+      const rawDate = raw[Object.keys(raw).find(k =>
+        k.toLowerCase().includes('date') || k.toLowerCase().includes('lesson date')
+      ) ?? '']
       const parsedDate = parseLessonDate(rawDate)
 
       return {
@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No valid rows found — check column headers match the required format' }, { status: 400 })
     }
 
-    // ── Create job record in DB ───────────────────────────────────────────────
+    // ── Create job record in DB, storing the rows there (not in Inngest) ──────
+    // This avoids Inngest's 256KB event payload limit entirely.
     const job = await prisma.importJob.create({
       data: {
         status: 'queued',
@@ -93,15 +94,16 @@ export async function POST(request: NextRequest) {
         message: `Queued — ${rows.length} rows ready to process`,
         totalRows: rows.length,
         rowErrors: [],
+        // Store the parsed rows in the job record so Inngest can read them
+        rowsJson: JSON.stringify(rows),
       },
     })
 
-    // ── Fire Inngest event (returns immediately) ───────────────────────────────
-    // Inngest picks this up and runs processImport in the background.
-    // The API returns the jobId to the client RIGHT NOW, no waiting.
+    // ── Fire Inngest event with only the jobId — no row data ─────────────────
+    // Inngest reads the rows from the DB using the jobId.
     await inngest.send({
       name: 'import/excel.uploaded',
-      data: { jobId: job.id, rows },
+      data: { jobId: job.id },  // ← just the ID, not the rows
     })
 
     return NextResponse.json({
@@ -112,6 +114,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Import start error:', error)
-    return NextResponse.json({ error: 'Failed to start import' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to start import', detail: String(error) }, { status: 500 })
   }
 }
