@@ -12,6 +12,7 @@ import { useTranslations } from 'next-intl'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import Cookies from 'js-cookie'
 import React from 'react'
+import { UploadModal } from '@/components/UploadModal'
 
 // ─── Debounce hook ───────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -307,13 +308,9 @@ export default function HomePage() {
   const [locName, setLocName] = useState('')
   const [locLoading, setLocLoading] = useState(false)
   const [locError, setLocError] = useState('')
+
+  // ── Upload modal — just the open/close flag; all logic lives in UploadModal ──
   const [uploadModal, setUploadModal] = useState(false)
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing'>('idle')
-  const [uploadMsg, setUploadMsg] = useState('')
-  const [uploadErr, setUploadErr] = useState('')
 
   // ── Confirm / Toast ──
   const [confirm, setConfirm] = useState<{ title: string; message: string; fn: () => void } | null>(null)
@@ -429,63 +426,6 @@ export default function HomePage() {
       if (r.ok) { setAddLocModal(false); setLocName(''); flash('Location created!') } else { const d = await r.json(); setLocError(d.error || 'Failed.') }
     } catch { setLocError('Unexpected error.') } finally { setLocLoading(false) }
   }
-  const handleUpload = async () => {
-    if (!uploadFile) { setUploadErr('Please select a file.'); return }
-    setUploading(true)
-    setUploadPhase('uploading')
-    setUploadProgress(0)
-    setUploadMsg('')
-    setUploadErr('')
-
-    const token = Cookies.get('jwt-token')
-    const fd = new FormData()
-    fd.append('file', uploadFile)
-
-    await new Promise<void>((resolve) => {
-      const xhr = new XMLHttpRequest()
-      xhr.open('POST', '/api/import-csv')
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-
-      xhr.upload.onprogress = (evt) => {
-        if (!evt.lengthComputable) return
-        const pct = Math.round((evt.loaded / evt.total) * 100)
-        setUploadProgress(pct)
-      }
-
-      xhr.onload = () => {
-        try {
-          setUploadPhase('processing')
-          setUploadProgress(100)
-          const data = xhr.responseText ? JSON.parse(xhr.responseText) : {}
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadMsg(data.message || 'Imported!')
-            setUploadFile(null)
-            fetchCount()
-            if (showAllCustomers) fetchAllCustomers(1)
-          } else {
-            setUploadErr(data.error || 'Upload failed.')
-          }
-        } catch {
-          setUploadErr('Unexpected error.')
-        } finally {
-          setUploading(false)
-          setUploadPhase('idle')
-          setUploadProgress(null)
-          resolve()
-        }
-      }
-
-      xhr.onerror = () => {
-        setUploadErr('Unexpected error.')
-        setUploading(false)
-        setUploadPhase('idle')
-        setUploadProgress(null)
-        resolve()
-      }
-
-      xhr.send(fd)
-    })
-  }
 
   const filteredUsers = allUsers.filter(u => roleFilter === 'ALL' || u.role === roleFilter)
 
@@ -575,7 +515,7 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
-                {/* Row 1 — primary actions, always visible */}
+                {/* Row 1 — primary actions */}
                 <div className="flex flex-wrap items-center gap-2.5">
                   <Btn onClick={() => router.push(`/${locale}/add-record`)}>
                     <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
@@ -941,67 +881,16 @@ export default function HomePage() {
         </form>
       </ModalShell>
 
-      {/* Upload */}
-      <ModalShell open={uploadModal} onClose={() => setUploadModal(false)} title={t('HomePage.importCSV')}>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <p className="text-sm text-gray-600">{t('HomePage.importRecordsDesc')}</p>
-            <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                {t('HomePage.csvRequirements')}
-              </p>
-              <p className="text-xs text-gray-500 mb-2">{t('HomePage.csvRequirementsDesc')}</p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-gray-700">
-                {[
-                  t('HomePage.csvHeaders.customerId'),
-                  t('HomePage.csvHeaders.customerName'),
-                  t('HomePage.csvHeaders.initialSymptom'),
-                  t('HomePage.csvHeaders.lessonId'),
-                  t('HomePage.csvHeaders.lessonDate'),
-                  t('HomePage.csvHeaders.instructorName'),
-                  t('HomePage.csvHeaders.lessonType'),
-                  t('HomePage.csvHeaders.customerSymptoms'),
-                  t('HomePage.csvHeaders.lessonContent'),
-                  t('HomePage.csvHeaders.courseCompletion')
-                ].map(h => (
-                  <div key={h} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                    <span className="break-words">{h}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[11px] text-gray-400 mt-2">
-                {t('HomePage.importTip')}
-              </p>
-            </div>
-          </div>
-          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 hover:border-gray-300 cursor-pointer transition-colors">
-            <Upload className="w-5 h-5 text-gray-400 mb-2" />
-            <span className="text-sm font-medium text-gray-600">{uploadFile ? uploadFile.name : t('HomePage.clickToSelectFile')}</span>
-            <span className="text-xs text-gray-400 mt-0.5">{t('HomePage.fileTypesSupported')}</span>
-            <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { setUploadFile(e.target.files?.[0] || null); setUploadErr(''); setUploadMsg('') }} />
-          </label>
-          {uploadErr && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{uploadErr}</div>}
-          {uploadMsg && <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 px-3.5 py-2.5 rounded-xl"><Activity className="w-4 h-4 flex-shrink-0" />{uploadMsg}</div>}
-          {uploading && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>
-                  {uploadPhase === 'uploading' ? t('HomePage.uploading') : t('HomePage.processing')}
-                </span>
-                {typeof uploadProgress === 'number' && <span>{uploadProgress}%</span>}
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div
-                  className="h-full bg-gray-900 transition-all"
-                  style={{ width: `${uploadProgress ?? 0}%` }}
-                />
-              </div>
-            </div>
-          )}
-          <Btn onClick={handleUpload} disabled={uploading || !uploadFile} className="w-full justify-center !py-3">{uploading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('HomePage.importing')}</> : t('HomePage.uploadAndImport')}</Btn>
-        </div>
-      </ModalShell>
+      {/* ── Upload modal — the Inngest-backed component ── */}
+      <UploadModal
+        open={uploadModal}
+        onClose={() => setUploadModal(false)}
+        onSuccess={() => {
+          fetchCount()
+          if (showAllCustomers) fetchAllCustomers(1)
+          flash('Import complete!')
+        }}
+      />
     </>
   )
 }
