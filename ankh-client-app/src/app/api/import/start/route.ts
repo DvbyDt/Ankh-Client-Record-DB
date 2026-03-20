@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Client } from '@upstash/qstash'
 import * as XLSX from 'xlsx'
 
 const ALIASES: Record<string, string> = {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File must be CSV, XLSX, or XLS' }, { status: 400 })
     }
 
-    // ── Parse file ────────────────────────────────────────────────────────────
+    // ── Parse file ──────────────────────────────────────────────────────────
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File is empty' }, { status: 400 })
     }
 
-    // ── Normalize rows ────────────────────────────────────────────────────────
+    // ── Normalize rows ──────────────────────────────────────────────────────
     const rows = rawRows.map(raw => {
       const norm: Record<string, string> = {}
       for (const [k, v] of Object.entries(raw)) {
@@ -70,8 +71,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No valid rows found — check column headers' }, { status: 400 })
     }
 
-    // ── Save job + rows to DB ─────────────────────────────────────────────────
-    // Rows are stored in DB, never sent to QStash (no size limits this way)
+    // ── Save job + rows to DB ───────────────────────────────────────────────
     const job = await prisma.importJob.create({
       data: {
         status: 'queued',
@@ -83,42 +83,20 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // ── Send jobId to QStash ──────────────────────────────────────────────────
-    // QStash will call /api/import/process with { jobId, chunkIndex: 0 }
-    // We only send the jobId — QStash never sees the row data
-    const qstashToken = process.env.QSTASH_TOKEN
-    console.log('QSTASH_TOKEN starts with:', process.env.QSTASH_TOKEN?.slice(0, 15))
-    if (!qstashToken) throw new Error('QSTASH_TOKEN env var is not set')
+    // ── Publish to QStash using official SDK ────────────────────────────────
+    // The SDK reads QSTASH_URL and QSTASH_TOKEN from env automatically
+    const qstash = new Client({
+      baseUrl: process.env.QSTASH_URL!,
+      token: process.env.QSTASH_TOKEN!,
+    })
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${request.headers.get('host')}`
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL!
 
-    const qstashRes = await fetch(
-      `https://qstash-eu-central-1.upstash.io/v2/publish/${appUrl}/api/import/process`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${qstashToken}`,
-          'Content-Type': 'application/json',
-          // Retry up to 3 times if the endpoint fails
-          'Upstash-Retries': '3',
-          // Wait 2 seconds between retries
-          'Upstash-Retry-Delay': '2s',
-        },
-        body: JSON.stringify({ jobId: job.id, chunkIndex: 0 }),
-      }
-    )
-
-    if (!qstashRes.ok) {
-      const err = await qstashRes.text()
-      console.error('QStash publish error:', err)
-      // Don't fail the request — job is already created in DB
-      // Mark it as failed so the UI shows an error
-      await prisma.importJob.update({
-        where: { id: job.id },
-        data: { status: 'failed', message: `Failed to queue job: ${err}` },
-      })
-      return NextResponse.json({ error: 'Failed to queue import job' }, { status: 500 })
-    }
+    await qstash.publishJSON({
+      url: `${appUrl}/api/import/process`,
+      body: { jobId: job.id, chunkIndex: 0 },
+      retries: 3,
+    })
 
     return NextResponse.json({
       jobId: job.id,
