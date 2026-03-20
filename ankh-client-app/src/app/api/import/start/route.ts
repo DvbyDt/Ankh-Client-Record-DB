@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${request.headers.get('host')}`
 
     const qstashRes = await fetch(
-      `https://qstash.upstash.io/v2/publish/${appUrl}/api/import/process`,
+      `https://qstash-eu-central-1.upstash.io/v2/publish/${appUrl}/api/import/process`,
       {
         method: 'POST',
         headers: {
