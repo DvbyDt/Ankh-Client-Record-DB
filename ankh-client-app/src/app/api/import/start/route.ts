@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     await qstash.publishJSON({
       url: `${appUrl}/api/import/process`,
-      body: { jobId: job.id, chunkIndex: 0 },
+      body: { jobId: job.id, phase: "setup" },
       retries: 3,
     })
 
