@@ -15,7 +15,7 @@ interface ImportRow {
   customerId: string
   customerName: string
   lessonId: string
-  lessonDate: string
+  lessonDate: string        // ISO string or empty
   instructorName: string
   lessonType?: string
   locationName?: string
@@ -29,6 +29,12 @@ async function setProgress(jobId: string, progress: number, message: string, sta
     where: { id: jobId },
     data: { progress, message, status },
   })
+}
+
+function safeDate(val: string | undefined | null): Date | null {
+  if (!val || val.trim() === '') return null
+  const d = new Date(val)
+  return isNaN(d.getTime()) ? null : d
 }
 
 async function handler(request: NextRequest) {
@@ -58,20 +64,26 @@ async function handler(request: NextRequest) {
     const totalRows = allRows.length
     const totalChunks = Math.ceil(totalRows / CHUNK_SIZE)
     const chunk = allRows.slice(chunkIndex * CHUNK_SIZE, (chunkIndex + 1) * CHUNK_SIZE)
+    const errors: string[] = Array.isArray(job.rowErrors) ? job.rowErrors as string[] : []
 
-    // ── First chunk: set up all reference data ──────────────────────────────
+    // ── First chunk only: set up all reference data ─────────────────────────
     if (chunkIndex === 0) {
+      // 1. Locations
       await setProgress(jobId, 10, 'Setting up locations…')
-      const locationNames = [...new Set(allRows.map(r => r.locationName?.trim() || 'Default Location'))]
-      await prisma.$transaction(
-        locationNames.map(name => prisma.location.upsert({ where: { name }, update: {}, create: { name } }))
-      )
+      const locationNames = [...new Set(
+        allRows.map(r => r.locationName?.trim() || 'Default Location')
+      )]
+      for (const name of locationNames) {
+        await prisma.location.upsert({ where: { name }, update: {}, create: { name } })
+      }
 
+      // 2. Instructors
       await setProgress(jobId, 20, 'Setting up instructors…')
       const hashedPw = await bcrypt.hash('DefaultPass123!', 10)
-      const uniqueInstructors = new Map<string, string>()
+      const uniqueInstructors = new Map<string, string>() // email → name
       for (const row of allRows) {
-        const email = `${row.instructorName.replace(/\s+/g, '.').toLowerCase()}@instructor.local`
+        if (!row.instructorName?.trim()) continue
+        const email = `${row.instructorName.trim().replace(/\s+/g, '.').toLowerCase()}@instructor.local`
         uniqueInstructors.set(email, row.instructorName.trim())
       }
       for (const [email, name] of uniqueInstructors) {
@@ -80,22 +92,27 @@ async function handler(request: NextRequest) {
           where: { email },
           update: {},
           create: {
-            username: email, password: hashedPw, role: 'INSTRUCTOR',
-            firstName: parts[0] || name, lastName: parts.slice(1).join(' ') || '', email,
+            username: email,
+            password: hashedPw,
+            role: 'INSTRUCTOR',
+            firstName: parts[0] || name,
+            lastName: parts.slice(1).join(' ') || '',
+            email,
           },
         })
       }
 
+      // 3. Customers
       await setProgress(jobId, 35, 'Importing customers…')
       const uniqueCustomers = new Map<string, { firstName: string; lastName: string; email: string }>()
       for (const row of allRows) {
-        if (!uniqueCustomers.has(row.customerId)) {
-          const parts = row.customerName.trim().split(/\s+/)
-          uniqueCustomers.set(row.customerId, {
-            firstName: parts[0] || '', lastName: parts.slice(1).join(' ') || '',
-            email: `${row.customerId}@imported.local`,
-          })
-        }
+        if (!row.customerId || uniqueCustomers.has(row.customerId)) continue
+        const parts = (row.customerName || '').trim().split(/\s+/)
+        uniqueCustomers.set(row.customerId, {
+          firstName: parts[0] || 'Unknown',
+          lastName: parts.slice(1).join(' ') || '',
+          email: `customer_${row.customerId}@imported.local`,
+        })
       }
       for (const [id, c] of uniqueCustomers) {
         await prisma.customer.upsert({
@@ -105,9 +122,10 @@ async function handler(request: NextRequest) {
         })
       }
 
+      // 4. Fetch IDs for lessons
       await setProgress(jobId, 50, 'Importing lessons…')
       const locationRecords = await prisma.location.findMany({
-        where: { name: { in: [...new Set(allRows.map(r => r.locationName?.trim() || 'Default Location'))] } },
+        where: { name: { in: locationNames } },
         select: { id: true, name: true },
       })
       const locationIdByName = Object.fromEntries(locationRecords.map(l => [l.name, l.id]))
@@ -118,60 +136,102 @@ async function handler(request: NextRequest) {
       })
       const instructorIdByEmail = Object.fromEntries(instructorRecords.map(u => [u.email, u.id]))
 
+      // 5. Lessons — deduplicated
       const uniqueLessons = new Map<string, {
-        instructorEmail: string; locationName: string
-        lessonType: string; lessonContent: string | null; lessonDate: Date
+        instructorEmail: string
+        locationName: string
+        lessonType: string
+        lessonContent: string | null
+        lessonDate: Date | null
       }>()
       for (const row of allRows) {
-        if (!uniqueLessons.has(row.lessonId)) {
-          uniqueLessons.set(row.lessonId, {
-            instructorEmail: `${row.instructorName.replace(/\s+/g, '.').toLowerCase()}@instructor.local`,
-            locationName: row.locationName?.trim() || 'Default Location',
-            lessonType: row.lessonType?.trim() || 'Group',
-            lessonContent: row.lessonContent?.trim() || null,
-            lessonDate: new Date(row.lessonDate),
-          })
-        }
+        if (uniqueLessons.has(row.lessonId)) continue
+        uniqueLessons.set(row.lessonId, {
+          instructorEmail: `${(row.instructorName || '').trim().replace(/\s+/g, '.').toLowerCase()}@instructor.local`,
+          locationName: row.locationName?.trim() || 'Default Location',
+          lessonType: row.lessonType?.trim() || 'Group',
+          lessonContent: row.lessonContent?.trim() || null,
+          lessonDate: safeDate(row.lessonDate),  // null if invalid — no crash
+        })
       }
+
       for (const [id, lesson] of uniqueLessons) {
         const instructorId = instructorIdByEmail[lesson.instructorEmail]
         const locationId = locationIdByName[lesson.locationName]
-        if (!instructorId || !locationId) continue
+        if (!instructorId || !locationId) {
+          errors.push(`Skipped lesson ${id}: instructor or location not found`)
+          continue
+        }
+
+        // Only include createdAt if we have a valid date
+        const dateField = lesson.lessonDate ? { createdAt: lesson.lessonDate } : {}
+
         await prisma.lesson.upsert({
           where: { id },
-          update: { lessonType: lesson.lessonType, lessonContent: lesson.lessonContent, createdAt: lesson.lessonDate, instructorId, locationId },
-          create: { id, lessonType: lesson.lessonType, lessonContent: lesson.lessonContent, instructorId, locationId, createdAt: lesson.lessonDate },
+          update: {
+            lessonType: lesson.lessonType,
+            lessonContent: lesson.lessonContent,
+            instructorId,
+            locationId,
+            ...dateField,
+          },
+          create: {
+            id,
+            lessonType: lesson.lessonType,
+            lessonContent: lesson.lessonContent,
+            instructorId,
+            locationId,
+            ...dateField,
+          },
         })
       }
     }
 
-    // ── Process this chunk's participants ───────────────────────────────────
-    const pct = Math.floor(((chunkIndex + 1) / totalChunks) * 40) + 55
-    await setProgress(jobId, Math.min(pct, 95),
+    // ── Process this chunk's participants ────────────────────────────────────
+    const pct = chunkIndex === 0
+      ? 60
+      : Math.min(55 + Math.floor(((chunkIndex + 1) / totalChunks) * 40), 95)
+
+    await setProgress(
+      jobId, pct,
       `Processing rows ${chunkIndex * CHUNK_SIZE + 1}–${Math.min((chunkIndex + 1) * CHUNK_SIZE, totalRows)} of ${totalRows}…`
     )
 
-    const errors: string[] = Array.isArray(job.rowErrors) ? job.rowErrors as string[] : []
+    const validChunk = chunk.filter(row => {
+      if (!row.customerId || !row.lessonId) {
+        errors.push(`Skipped row: missing customerId or lessonId`)
+        return false
+      }
+      return true
+    })
 
-    await prisma.$transaction(
-      chunk
-        .filter(row => {
-          if (!row.customerId || !row.lessonId || !row.lessonDate || !row.instructorName) {
-            errors.push(`Skipped: missing fields for "${row.customerName || row.customerId}"`)
-            return false
-          }
-          return true
-        })
-        .map(row =>
+    if (validChunk.length > 0) {
+      await prisma.$transaction(
+        validChunk.map(row =>
           prisma.lessonParticipant.upsert({
-            where: { customerId_lessonId: { customerId: row.customerId, lessonId: row.lessonId } },
-            update: { customerSymptoms: row.customerSymptoms || null, customerImprovements: row.courseCompletionStatus || null },
-            create: { customerId: row.customerId, lessonId: row.lessonId, customerSymptoms: row.customerSymptoms || null, customerImprovements: row.courseCompletionStatus || null, status: 'attended' },
+            where: {
+              customerId_lessonId: {
+                customerId: row.customerId,
+                lessonId: row.lessonId,
+              },
+            },
+            update: {
+              customerSymptoms: row.customerSymptoms || null,
+              customerImprovements: row.courseCompletionStatus || null,
+            },
+            create: {
+              customerId: row.customerId,
+              lessonId: row.lessonId,
+              customerSymptoms: row.customerSymptoms || null,
+              customerImprovements: row.courseCompletionStatus || null,
+              status: 'attended',
+            },
           })
         )
-    )
+      )
+    }
 
-    // ── Queue next chunk OR mark complete ───────────────────────────────────
+    // ── Queue next chunk OR mark complete ────────────────────────────────────
     const isLastChunk = chunkIndex + 1 >= totalChunks
 
     if (isLastChunk) {
@@ -179,34 +239,40 @@ async function handler(request: NextRequest) {
       await prisma.importJob.update({
         where: { id: jobId },
         data: {
-          status: 'complete', progress: 100,
+          status: 'complete',
+          progress: 100,
           message: `Successfully imported ${totalRows - errors.length} records${errorNote}`,
-          rowErrors: errors, rowsJson: null,
+          rowErrors: errors,
+          rowsJson: null,
         },
       })
     } else {
-      await prisma.importJob.update({ where: { id: jobId }, data: { rowErrors: errors } })
+      await prisma.importJob.update({
+        where: { id: jobId },
+        data: { rowErrors: errors },
+      })
 
-      // Use SDK to queue next chunk — handles EU region automatically
       const qstash = new Client({
         baseUrl: process.env.QSTASH_URL!,
         token: process.env.QSTASH_TOKEN!,
       })
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL!
       await qstash.publishJSON({
-        url: `${appUrl}/api/import/process`,
+        url: `${process.env.NEXT_PUBLIC_APP_URL!}/api/import/process`,
         body: { jobId, chunkIndex: chunkIndex + 1 },
         retries: 3,
       })
     }
 
-    return NextResponse.json({ ok: true, chunkIndex, isLastChunk })
+    return NextResponse.json({ ok: true, chunkIndex, isLastChunk, totalChunks })
 
   } catch (error) {
-    console.error('Process chunk error:', error)
+    console.error(`Import failed at chunk ${chunkIndex}:`, error)
     await prisma.importJob.update({
       where: { id: jobId },
-      data: { status: 'failed', message: `Import failed at chunk ${chunkIndex}: ${String(error)}` },
+      data: {
+        status: 'failed',
+        message: `Import failed at chunk ${chunkIndex}: ${String(error)}`,
+      },
     }).catch(() => {})
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }
