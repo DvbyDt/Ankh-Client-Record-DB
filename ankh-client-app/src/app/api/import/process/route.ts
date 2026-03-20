@@ -214,7 +214,7 @@ async function handler(request: NextRequest) {
       const qstashToken = process.env.QSTASH_TOKEN!
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${request.headers.get('host')}`
 
-      await fetch(`https://qstash.upstash.io/v2/publish/${appUrl}/api/import/process`, {
+      await fetch(`https://qstash-eu-central-1.upstash.io/v2/publish/${appUrl}/api/import/process`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${qstashToken}`,
