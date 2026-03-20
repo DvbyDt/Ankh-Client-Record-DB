@@ -4,13 +4,14 @@ import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import { Client } from '@upstash/qstash'
 import bcrypt from 'bcryptjs'
 
-const CHUNK_SIZE = 200 // smaller chunks = safer within 60s limit
+// 200 rows per chunk — each call takes ~10-15s, well within Vercel's 60s limit
+const CHUNK_SIZE = 200
+
+type Phase = 'refs' | 'lessons' | 'participants'
 
 interface ProcessPayload {
   jobId: string
-  // phase 'setup' runs first (locations, instructors, customers, lessons)
-  // phase 'participants' runs for each chunk of participants
-  phase: 'setup' | 'participants'
+  phase: Phase
   chunkIndex?: number
 }
 
@@ -40,35 +41,30 @@ function safeDate(val: string | undefined | null): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-function getQStash() {
-  return new Client({
+async function queueNext(payload: ProcessPayload) {
+  const qstash = new Client({
     baseUrl: process.env.QSTASH_URL!,
     token: process.env.QSTASH_TOKEN!,
   })
-}
-
-async function queueNext(payload: ProcessPayload) {
-  await getQStash().publishJSON({
+  await qstash.publishJSON({
     url: `${process.env.NEXT_PUBLIC_APP_URL!}/api/import/process`,
     body: payload,
     retries: 2,
   })
 }
 
-// ── PHASE 1: Setup — locations, instructors, customers, lessons ──────────────
-// Runs once. Should complete well within 60s for 3741 rows.
-async function runSetup(jobId: string, allRows: ImportRow[]) {
-  const errors: string[] = []
+// ── PHASE 1: refs ─────────────────────────────────────────────────────────────
+// Upsert locations, instructors, customers — all small sets, done in <10s
+async function runRefs(jobId: string, allRows: ImportRow[]) {
+  await setProgress(jobId, 8, 'Setting up locations…')
 
-  // 1. Locations (fast — usually <10 unique)
-  await setProgress(jobId, 10, 'Setting up locations…')
   const locationNames = [...new Set(allRows.map(r => r.locationName?.trim() || 'Default Location'))]
-  for (const name of locationNames) {
-    await prisma.location.upsert({ where: { name }, update: {}, create: { name } })
-  }
+  await prisma.$transaction(
+    locationNames.map(name => prisma.location.upsert({ where: { name }, update: {}, create: { name } }))
+  )
 
-  // 2. Instructors (fast — usually <20 unique)
-  await setProgress(jobId, 18, 'Setting up instructors…')
+  await setProgress(jobId, 14, 'Setting up instructors…')
+
   const hashedPw = await bcrypt.hash('DefaultPass123!', 10)
   const uniqueInstructors = new Map<string, string>()
   for (const row of allRows) {
@@ -76,20 +72,22 @@ async function runSetup(jobId: string, allRows: ImportRow[]) {
     const email = `${row.instructorName.trim().replace(/\s+/g, '.').toLowerCase()}@instructor.local`
     uniqueInstructors.set(email, row.instructorName.trim())
   }
-  for (const [email, name] of uniqueInstructors) {
-    const parts = name.split(/\s+/)
-    await prisma.user.upsert({
-      where: { email },
-      update: {},
-      create: {
-        username: email, password: hashedPw, role: 'INSTRUCTOR',
-        firstName: parts[0] || name, lastName: parts.slice(1).join(' ') || '', email,
-      },
+  await prisma.$transaction(
+    [...uniqueInstructors.entries()].map(([email, name]) => {
+      const parts = name.split(/\s+/)
+      return prisma.user.upsert({
+        where: { email },
+        update: {},
+        create: {
+          username: email, password: hashedPw, role: 'INSTRUCTOR',
+          firstName: parts[0] || name, lastName: parts.slice(1).join(' ') || '', email,
+        },
+      })
     })
-  }
+  )
 
-  // 3. Customers — batch upsert in groups of 100
-  await setProgress(jobId, 28, 'Importing customers…')
+  await setProgress(jobId, 20, 'Importing customers…')
+
   const uniqueCustomers = new Map<string, { firstName: string; lastName: string; email: string }>()
   for (const row of allRows) {
     if (!row.customerId || uniqueCustomers.has(row.customerId)) continue
@@ -100,88 +98,113 @@ async function runSetup(jobId: string, allRows: ImportRow[]) {
       email: `customer_${row.customerId}@imported.local`,
     })
   }
-  const customerEntries = [...uniqueCustomers.entries()]
-  for (let i = 0; i < customerEntries.length; i += 100) {
-    const batch = customerEntries.slice(i, i + 100)
-    await prisma.$transaction(
-      batch.map(([id, c]) =>
-        prisma.customer.upsert({
-          where: { id },
-          update: { firstName: c.firstName, lastName: c.lastName },
-          create: { id, ...c },
-        })
-      )
-    )
-  }
-
-  // 4. Fetch location + instructor IDs
-  await setProgress(jobId, 40, 'Importing lessons…')
-  const locationRecords = await prisma.location.findMany({
-    where: { name: { in: locationNames } },
-    select: { id: true, name: true },
-  })
-  const locationIdByName = Object.fromEntries(locationRecords.map(l => [l.name, l.id]))
-
-  const instructorRecords = await prisma.user.findMany({
-    where: { email: { in: [...uniqueInstructors.keys()] } },
-    select: { id: true, email: true },
-  })
-  const instructorIdByEmail = Object.fromEntries(instructorRecords.map(u => [u.email, u.id]))
-
-  // 5. Lessons — batch upsert in groups of 100
-  const uniqueLessons = new Map<string, {
-    instructorEmail: string; locationName: string
-    lessonType: string; lessonContent: string | null; lessonDate: Date | null
-  }>()
-  for (const row of allRows) {
-    if (uniqueLessons.has(row.lessonId)) continue
-    uniqueLessons.set(row.lessonId, {
-      instructorEmail: `${(row.instructorName || '').trim().replace(/\s+/g, '.').toLowerCase()}@instructor.local`,
-      locationName: row.locationName?.trim() || 'Default Location',
-      lessonType: row.lessonType?.trim() || 'Group',
-      lessonContent: row.lessonContent?.trim() || null,
-      lessonDate: safeDate(row.lessonDate),
-    })
-  }
-
-  const lessonEntries = [...uniqueLessons.entries()]
-  for (let i = 0; i < lessonEntries.length; i += 100) {
-    const batch = lessonEntries.slice(i, i + 100)
-    await prisma.$transaction(
-      batch.flatMap(([id, lesson]) => {
-        const instructorId = instructorIdByEmail[lesson.instructorEmail]
-        const locationId = locationIdByName[lesson.locationName]
-        if (!instructorId || !locationId) {
-          errors.push(`Skipped lesson ${id}: instructor or location not found`)
-          return []
-        }
-        const dateField = lesson.lessonDate ? { createdAt: lesson.lessonDate } : {}
-        return [prisma.lesson.upsert({
-          where: { id },
-          update: { lessonType: lesson.lessonType, lessonContent: lesson.lessonContent, instructorId, locationId, ...dateField },
-          create: { id, lessonType: lesson.lessonType, lessonContent: lesson.lessonContent, instructorId, locationId, ...dateField },
-        })]
+  await prisma.$transaction(
+    [...uniqueCustomers.entries()].map(([id, c]) =>
+      prisma.customer.upsert({
+        where: { id },
+        update: { firstName: c.firstName, lastName: c.lastName },
+        create: { id, ...c },
       })
     )
-  }
+  )
 
-  // Save errors and queue first participant chunk
-  await prisma.importJob.update({ where: { id: jobId }, data: { rowErrors: errors, progress: 50, message: 'Setup complete — processing participants…' } })
+  await prisma.importJob.update({
+    where: { id: jobId },
+    data: { progress: 25, message: 'References done — importing lessons…' },
+  })
 }
 
-// ── PHASE 2: Participants — one chunk at a time ──────────────────────────────
+// ── PHASE 2: lessons ──────────────────────────────────────────────────────────
+// 3741 unique lessons split into chunks of 200 — ~19 QStash calls
+async function runLessonsChunk(jobId: string, allRows: ImportRow[], chunkIndex: number) {
+  const uniqueLessons = [...new Map(
+    allRows.map(row => [row.lessonId, row])
+  ).entries()]
+
+  const totalChunks = Math.ceil(uniqueLessons.length / CHUNK_SIZE)
+  const chunk = uniqueLessons.slice(chunkIndex * CHUNK_SIZE, (chunkIndex + 1) * CHUNK_SIZE)
+
+  const pct = 25 + Math.floor(((chunkIndex + 1) / totalChunks) * 30)
+  await setProgress(
+    jobId, Math.min(pct, 54),
+    `Importing lessons… (${Math.min((chunkIndex + 1) * CHUNK_SIZE, uniqueLessons.length)} / ${uniqueLessons.length})`
+  )
+
+  // Fetch instructor + location IDs needed for this chunk
+  const instructorEmails = [...new Set(chunk.map(([, row]) =>
+    `${(row.instructorName || '').trim().replace(/\s+/g, '.').toLowerCase()}@instructor.local`
+  ))]
+  const locationNames = [...new Set(chunk.map(([, row]) => row.locationName?.trim() || 'Default Location'))]
+
+  const [instructorRecords, locationRecords] = await Promise.all([
+    prisma.user.findMany({ where: { email: { in: instructorEmails } }, select: { id: true, email: true } }),
+    prisma.location.findMany({ where: { name: { in: locationNames } }, select: { id: true, name: true } }),
+  ])
+
+  const instructorIdByEmail = Object.fromEntries(instructorRecords.map(u => [u.email, u.id]))
+  const locationIdByName = Object.fromEntries(locationRecords.map(l => [l.name, l.id]))
+
+  const errors: string[] = []
+
+  await prisma.$transaction(
+    chunk.flatMap(([id, row]) => {
+      const instructorEmail = `${(row.instructorName || '').trim().replace(/\s+/g, '.').toLowerCase()}@instructor.local`
+      const locationName = row.locationName?.trim() || 'Default Location'
+      const instructorId = instructorIdByEmail[instructorEmail]
+      const locationId = locationIdByName[locationName]
+
+      if (!instructorId || !locationId) {
+        errors.push(`Skipped lesson ${id}: instructor or location not found`)
+        return []
+      }
+
+      const lessonDate = safeDate(row.lessonDate)
+      const dateField = lessonDate ? { createdAt: lessonDate } : {}
+
+      return [prisma.lesson.upsert({
+        where: { id },
+        update: {
+          lessonType: row.lessonType?.trim() || 'Group',
+          lessonContent: row.lessonContent?.trim() || null,
+          instructorId, locationId, ...dateField,
+        },
+        create: {
+          id,
+          lessonType: row.lessonType?.trim() || 'Group',
+          lessonContent: row.lessonContent?.trim() || null,
+          instructorId, locationId, ...dateField,
+        },
+      })]
+    })
+  )
+
+  // Save errors and queue next
+  const existingJob = await prisma.importJob.findUnique({ where: { id: jobId }, select: { rowErrors: true } })
+  const allErrors = [...(Array.isArray(existingJob?.rowErrors) ? existingJob!.rowErrors as string[] : []), ...errors]
+  await prisma.importJob.update({ where: { id: jobId }, data: { rowErrors: allErrors } })
+
+  const isLastChunk = chunkIndex + 1 >= totalChunks
+  if (isLastChunk) {
+    await queueNext({ jobId, phase: 'participants', chunkIndex: 0 })
+  } else {
+    await queueNext({ jobId, phase: 'lessons', chunkIndex: chunkIndex + 1 })
+  }
+}
+
+// ── PHASE 3: participants ─────────────────────────────────────────────────────
+// 3741 participant rows split into chunks of 200 — ~19 QStash calls
 async function runParticipantsChunk(jobId: string, allRows: ImportRow[], chunkIndex: number) {
   const totalChunks = Math.ceil(allRows.length / CHUNK_SIZE)
   const chunk = allRows.slice(chunkIndex * CHUNK_SIZE, (chunkIndex + 1) * CHUNK_SIZE)
 
-  const pct = 50 + Math.floor(((chunkIndex + 1) / totalChunks) * 48)
+  const pct = 55 + Math.floor(((chunkIndex + 1) / totalChunks) * 43)
   await setProgress(
     jobId, Math.min(pct, 98),
     `Linking customers to lessons… (${Math.min((chunkIndex + 1) * CHUNK_SIZE, allRows.length)} / ${allRows.length})`
   )
 
-  const job = await prisma.importJob.findUnique({ where: { id: jobId }, select: { rowErrors: true } })
-  const errors: string[] = Array.isArray(job?.rowErrors) ? job!.rowErrors as string[] : []
+  const existingJob = await prisma.importJob.findUnique({ where: { id: jobId }, select: { rowErrors: true } })
+  const errors: string[] = Array.isArray(existingJob?.rowErrors) ? existingJob!.rowErrors as string[] : []
 
   const validChunk = chunk.filter(row => {
     if (!row.customerId || !row.lessonId) {
@@ -212,25 +235,27 @@ async function runParticipantsChunk(jobId: string, allRows: ImportRow[], chunkIn
     )
   }
 
-  const isLastChunk = chunkIndex + 1 >= totalChunks
+  await prisma.importJob.update({ where: { id: jobId }, data: { rowErrors: errors } })
 
+  const isLastChunk = chunkIndex + 1 >= totalChunks
   if (isLastChunk) {
     const errorNote = errors.length > 0 ? ` (${errors.length} rows skipped)` : ''
     await prisma.importJob.update({
       where: { id: jobId },
       data: {
-        status: 'complete', progress: 100,
+        status: 'complete',
+        progress: 100,
         message: `Successfully imported ${allRows.length - errors.length} records${errorNote}`,
-        rowErrors: errors, rowsJson: null,
+        rowErrors: errors,
+        rowsJson: null,
       },
     })
   } else {
-    await prisma.importJob.update({ where: { id: jobId }, data: { rowErrors: errors } })
     await queueNext({ jobId, phase: 'participants', chunkIndex: chunkIndex + 1 })
   }
 }
 
-// ── Main handler ─────────────────────────────────────────────────────────────
+// ── Main handler ──────────────────────────────────────────────────────────────
 async function handler(request: NextRequest) {
   let payload: ProcessPayload
   try {
@@ -256,12 +281,15 @@ async function handler(request: NextRequest) {
 
     const allRows: ImportRow[] = JSON.parse(job.rowsJson as string || '[]')
 
-    if (phase === 'setup') {
-      await runSetup(jobId, allRows)
-      // Queue first participant chunk
-      await queueNext({ jobId, phase: 'participants', chunkIndex: 0 })
-    } else {
+    if (phase === 'refs') {
+      await runRefs(jobId, allRows)
+      await queueNext({ jobId, phase: 'lessons', chunkIndex: 0 })
+    } else if (phase === 'lessons') {
+      await runLessonsChunk(jobId, allRows, chunkIndex)
+    } else if (phase === 'participants') {
       await runParticipantsChunk(jobId, allRows, chunkIndex)
+    } else {
+      return NextResponse.json({ error: `Unknown phase: ${phase}` }, { status: 400 })
     }
 
     return NextResponse.json({ ok: true, phase, chunkIndex })
