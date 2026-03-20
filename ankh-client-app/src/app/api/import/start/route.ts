@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { inngest } from '@/inngest/client'
 import * as XLSX from 'xlsx'
 
 const ALIASES: Record<string, string> = {
@@ -34,9 +33,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
-    }
+    if (!file) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
 
     const ext = file.name.split('.').pop()?.toLowerCase()
     if (!['csv', 'xlsx', 'xls'].includes(ext || '')) {
@@ -50,7 +47,7 @@ export async function POST(request: NextRequest) {
     const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { raw: true })
 
     if (rawRows.length === 0) {
-      return NextResponse.json({ error: 'File is empty or has no data rows' }, { status: 400 })
+      return NextResponse.json({ error: 'File is empty' }, { status: 400 })
     }
 
     // ── Normalize rows ────────────────────────────────────────────────────────
@@ -61,50 +58,66 @@ export async function POST(request: NextRequest) {
         const canonical = ALIASES[key] || key
         norm[canonical] = String(v ?? '').trim()
       }
-
-      const rawDate = raw[Object.keys(raw).find(k =>
-        k.toLowerCase().includes('date') || k.toLowerCase().includes('lesson date')
-      ) ?? '']
-      const parsedDate = parseLessonDate(rawDate)
-
-      return {
-        customerId: norm.customerId || '',
-        customerName: norm.customerName || '',
-        lessonId: norm.lessonId || '',
-        lessonDate: parsedDate || norm.lessonDate || '',
-        instructorName: norm.instructorName || '',
-        lessonType: norm.lessonType || 'Group',
-        locationName: norm.locationName || 'Default Location',
-        lessonContent: norm.lessonContent || '',
-        customerSymptoms: norm.customerSymptoms || '',
-        courseCompletionStatus: norm.courseCompletionStatus || '',
-      }
+      const dateKey = Object.keys(raw).find(k =>
+        k.toLowerCase().includes('date') || k.toLowerCase() === 'lesson date'
+      )
+      const parsedDate = parseLessonDate(dateKey ? raw[dateKey] : undefined)
+      if (parsedDate) norm.lessonDate = parsedDate
+      return norm
     }).filter(r => r.customerId && r.lessonId)
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: 'No valid rows found — check column headers match the required format' }, { status: 400 })
+      return NextResponse.json({ error: 'No valid rows found — check column headers' }, { status: 400 })
     }
 
-    // ── Create job record in DB, storing the rows there (not in Inngest) ──────
-    // This avoids Inngest's 256KB event payload limit entirely.
+    // ── Save job + rows to DB ─────────────────────────────────────────────────
+    // Rows are stored in DB, never sent to QStash (no size limits this way)
     const job = await prisma.importJob.create({
       data: {
         status: 'queued',
-        progress: 0,
-        message: `Queued — ${rows.length} rows ready to process`,
+        progress: 5,
+        message: `File received — ${rows.length} rows ready to process`,
         totalRows: rows.length,
         rowErrors: [],
-        // Store the parsed rows in the job record so Inngest can read them
         rowsJson: JSON.stringify(rows),
       },
     })
 
-    // ── Fire Inngest event with only the jobId — no row data ─────────────────
-    // Inngest reads the rows from the DB using the jobId.
-    await inngest.send({
-      name: 'import/excel.uploaded',
-      data: { jobId: job.id },  // ← just the ID, not the rows
-    })
+    // ── Send jobId to QStash ──────────────────────────────────────────────────
+    // QStash will call /api/import/process with { jobId, chunkIndex: 0 }
+    // We only send the jobId — QStash never sees the row data
+    const qstashToken = process.env.QSTASH_TOKEN
+    if (!qstashToken) throw new Error('QSTASH_TOKEN env var is not set')
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${request.headers.get('host')}`
+
+    const qstashRes = await fetch(
+      `https://qstash.upstash.io/v2/publish/${appUrl}/api/import/process`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${qstashToken}`,
+          'Content-Type': 'application/json',
+          // Retry up to 3 times if the endpoint fails
+          'Upstash-Retries': '3',
+          // Wait 2 seconds between retries
+          'Upstash-Retry-Delay': '2s',
+        },
+        body: JSON.stringify({ jobId: job.id, chunkIndex: 0 }),
+      }
+    )
+
+    if (!qstashRes.ok) {
+      const err = await qstashRes.text()
+      console.error('QStash publish error:', err)
+      // Don't fail the request — job is already created in DB
+      // Mark it as failed so the UI shows an error
+      await prisma.importJob.update({
+        where: { id: job.id },
+        data: { status: 'failed', message: `Failed to queue job: ${err}` },
+      })
+      return NextResponse.json({ error: 'Failed to queue import job' }, { status: 500 })
+    }
 
     return NextResponse.json({
       jobId: job.id,
