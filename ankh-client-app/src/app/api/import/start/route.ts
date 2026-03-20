@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
     // QStash will call /api/import/process with { jobId, chunkIndex: 0 }
     // We only send the jobId — QStash never sees the row data
     const qstashToken = process.env.QSTASH_TOKEN
+    console.log('QSTASH_TOKEN starts with:', process.env.QSTASH_TOKEN?.slice(0, 15))
     if (!qstashToken) throw new Error('QSTASH_TOKEN env var is not set')
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${request.headers.get('host')}`
