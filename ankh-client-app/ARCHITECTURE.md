@@ -1,6 +1,8 @@
-# Ankh Client Record Database - Architecture Guide
 
-This document provides an in-depth technical explanation of the Ankh Record Database application architecture, including system design, data flows, component interactions, and implementation details.
+# Ankh Client Record Database - Comprehensive Architecture Guide
+
+This document provides a comprehensive technical overview of the Ankh Record Database application, covering system design, data flows, component interactions, security, performance, and best practices for maintainability and scalability.
+
 
 ## Table of Contents
 
@@ -12,7 +14,7 @@ This document provides an in-depth technical explanation of the Ankh Record Data
 6. [API Layer Architecture](#api-layer-architecture)
 7. [Frontend Architecture](#frontend-architecture)
 8. [Authentication & Authorization](#authentication--authorization)
-9. [CSV Import/Export Pipeline](#csvimportexport-pipeline)
+9. [CSV Import/Export Pipeline](#csv-importexport-pipeline)
 10. [Search & Query Architecture](#search--query-architecture)
 11. [Internationalization (i18n) Architecture](#internationalization-i18n-architecture)
 12. [Data Flow Diagrams](#data-flow-diagrams)
@@ -20,10 +22,13 @@ This document provides an in-depth technical explanation of the Ankh Record Data
 14. [Performance Architecture](#performance-architecture)
 15. [Security Architecture](#security-architecture)
 16. [Deployment Architecture](#deployment-architecture)
+17. [Development Workflow](#development-workflow)
+18. [Conclusion](#conclusion)
 
 ---
 
-## System Overview
+
+## 1. System Overview
 
 ### High-Level Architecture
 
@@ -31,8 +36,8 @@ This document provides an in-depth technical explanation of the Ankh Record Data
 ┌─────────────────────────────────────────────────────────────┐
 │                    Client Browser                           │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │  Next.js Client (React Components + TypeScript)     │   │
-│  │  - LanguageSwitcher (i18n routing)                  │   │
+│  │  Next.js Client (React + TypeScript)                │   │
+│  │  - LanguageSwitcher (i18n)                          │   │
 │  │  - Customer Search UI                               │   │
 │  │  - Customer Details Modal                           │   │
 │  │  - Add Record Form                                  │   │
@@ -45,19 +50,19 @@ This document provides an in-depth technical explanation of the Ankh Record Data
 │  │  - Inject locale into request context               │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
-                          ↕
-        ┌─────────────────────────────────────┐
-        │  Next.js API Routes (Edge)          │
-        │  ┌───────────────────────────────┐  │
-        │  │ Authentication                │  │
-        │  │ - POST /api/auth/login        │  │
-        │  ├───────────────────────────────┤  │
-        │  │ Customers                     │  │
-        │  │ - GET /api/customers          │  │
-        │  │ - GET /api/customers/search   │  │
-        │  │ - GET /api/customers/{id}     │  │
-        │  │ - PUT /api/customers/{id}     │  │
-        │  │ - DELETE /api/customers/{id}  │  │
+        ↕
+  ┌─────────────────────────────────────┐
+  │  Next.js API Routes (Edge/Server)   │
+  │  ┌───────────────────────────────┐  │
+  │  │ Authentication                │  │
+  │  │ - POST /api/auth/login        │  │
+  │  ├───────────────────────────────┤  │
+  │  │ Customers                     │  │
+  │  │ - GET /api/customers          │  │
+  │  │ - GET /api/customers/search   │  │
+  │  │ - GET /api/customers/{id}     │  │
+  │  │ - PUT /api/customers/{id}     │  │
+  │  │ - DELETE /api/customers/{id}  │  │
         │  ├───────────────────────────────┤  │
         │  │ Lessons                       │  │
         │  │ - POST /api/lessons/new       │  │
@@ -73,60 +78,63 @@ This document provides an in-depth technical explanation of the Ankh Record Data
         │  │ - Location CRUD               │  │
         │  └───────────────────────────────┘  │
         └─────────────────────────────────────┘
-                          ↕
-        ┌─────────────────────────────────────┐
-        │  Prisma ORM Layer                   │
-        │ (Query Building & Optimization)    │
-        └─────────────────────────────────────┘
-                          ↕
-        ┌─────────────────────────────────────┐
-        │  PostgreSQL Supabase                │
-        │ (Connection Pool + Direct)          │
-        └─────────────────────────────────────┘
-```
 
-### Request Lifecycle
+                            ↕
+                      ┌─────────────────────────────────────┐
+                      │  Prisma ORM Layer                   │
+                      │ (Query Building & Optimization)     │
+                      └─────────────────────────────────────┘
+                            ↕
+                      ┌─────────────────────────────────────┐
+                      │  PostgreSQL (Supabase)              │
+                      │ (Connection Pool + Direct)          │
+                      └─────────────────────────────────────┘
+                    ```
+
+
+### Request Lifecycle (End-to-End)
 
 ```
 1. Browser Request
-   ↓
+  ↓
 2. Next.js Middleware
-   - Extract locale from URL path (/en/*, /ko/*)
-   - Add locale to request context
-   ↓
+  - Extract locale from URL path (/en/*, /ko/*)
+  - Add locale to request context
+  ↓
 3. Route Matching
-   - App Router matches URL to page or API route
-   ↓
+  - App Router matches URL to page or API route
+  ↓
 4. Middleware Chain (API Routes Only)
-   - Authentication check (JWT verification)
-   - Authorization check (role-based)
-   ↓
+  - Authentication check (JWT verification)
+  - Authorization check (role-based)
+  ↓
 5. Route Handler
-   - Process request logic
-   - Call database via Prisma
-   ↓
+  - Process request logic
+  - Call database via Prisma
+  ↓
 6. Prisma Query
-   - Build optimized SQL query
-   - Execute against connection pool
-   ↓
+  - Build optimized SQL query
+  - Execute against connection pool
+  ↓
 7. Database Response
-   - Fetch results from PostgreSQL
-   ↓
+  - Fetch results from PostgreSQL
+  ↓
 8. Response Processing
-   - Transform to JSON
-   - Add error handling
-   ↓
+  - Transform to JSON
+  - Add error handling
+  ↓
 9. HTTP Response
-   - Send back to client
-   ↓
+  - Send back to client
+  ↓
 10. Frontend Render
-    - React updates UI
-    - Re-run effects if needed
+   - React updates UI
+   - Re-run effects if needed
 ```
 
 ---
 
-## Architecture Patterns
+
+## 2. Architecture Patterns
 
 ### 1. Next.js App Router Pattern
 
@@ -274,7 +282,8 @@ async function getCustomers(limit?: number, offset?: number) {
 
 ---
 
-## Tech Stack Deep Dive
+
+## 3. Tech Stack Deep Dive
 
 ### Frontend Ecosystem
 
@@ -370,7 +379,8 @@ DIRECT_URL      → Direct connection (no pgbouncer)
 
 ---
 
-## Application Layers
+
+## 4. Application Layers
 
 ### Layer 1: Presentation Layer (UI Components)
 
@@ -568,7 +578,8 @@ Database: postgres
 
 ---
 
-## Database Architecture
+
+## 5. Database Architecture
 
 ### Schema Overview
 
@@ -711,7 +722,8 @@ CREATE INDEX idx_lessonparticipant_customerid ON lesson_participants("customerId
 
 ---
 
-## API Layer Architecture
+
+## 6. API Layer Architecture
 
 ### Route Organization
 
@@ -859,7 +871,8 @@ return new Response(csv, {
 
 ---
 
-## Frontend Architecture
+
+## 7. Frontend Architecture
 
 ### Component Hierarchy
 
@@ -1061,7 +1074,8 @@ const handleDeleteCustomer = async (id: string) => {
 
 ---
 
-## Authentication & Authorization
+
+## 8. Authentication & Authorization
 
 ### Authentication Flow
 
@@ -1195,7 +1209,8 @@ const isMatch = await bcrypt.compare(plainPassword, storedHash);
 
 ---
 
-## CSV Import/Export Pipeline
+
+## 9. CSV Import/Export Pipeline
 
 ### Import Architecture
 
@@ -1404,7 +1419,8 @@ John Doe      | john@example.com | 555-1234 | 2026-01-08 | Individual | Bob John
 
 ---
 
-## Search & Query Architecture
+
+## 10. Search & Query Architecture
 
 ### Search Implementation
 
@@ -1523,7 +1539,8 @@ const customers = await prisma.customer.findMany({
 
 ---
 
-## Internationalization (i18n) Architecture
+
+## 11. Internationalization (i18n) Architecture
 
 ### Implementation Pattern
 
@@ -1675,7 +1692,8 @@ export function LanguageSwitcher() {
 
 ---
 
-## Data Flow Diagrams
+
+## 12. Data Flow Diagrams
 
 ### Customer Creation Flow
 
@@ -1899,7 +1917,8 @@ export function LanguageSwitcher() {
 
 ---
 
-## Error Handling Strategy
+
+## 13. Error Handling Strategy
 
 ### Error Hierarchy
 
@@ -2024,7 +2043,8 @@ try {
 
 ---
 
-## Performance Architecture
+
+## 14. Performance Architecture
 
 ### Database Performance
 
@@ -2098,7 +2118,8 @@ const customers = await prisma.customer.findMany({
 
 ---
 
-## Security Architecture
+
+## 15. Security Architecture
 
 ### Authentication Security
 
@@ -2196,7 +2217,14 @@ if (!emailRegex.test(email)) {
 
 ---
 
-## Deployment Architecture
+
+## 16. Deployment Architecture
+## 17. Development Workflow
+
+(See full details in the previous section for local setup, making changes, and git workflow.)
+## 18. Conclusion
+
+The Ankh Client Record Database is a robust, production-grade, full-stack application. Its architecture is designed for scalability, maintainability, and security, with clear separation of concerns, type safety, and internationalization support. The system is ready for future enhancements such as advanced analytics, real-time features, and mobile support.
 
 ### Application Structure
 
