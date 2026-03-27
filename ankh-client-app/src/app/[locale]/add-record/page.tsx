@@ -419,6 +419,8 @@ export default function AddRecordPage() {
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && handleCustomerSearch()}
                   className="flex-1"
+                  spellCheck={false}
+                  autoComplete="off"
                 />
                 <Button onClick={handleCustomerSearch} disabled={isSearching || !searchTerm.trim()}>
                   {isSearching ? (
@@ -450,7 +452,7 @@ export default function AddRecordPage() {
                       <Card className="rounded-2xl border-gray-100 hover:border-gray-200 transition-all">
                         <CardContent className="py-3">
                           <div className="flex justify-between items-start">
-                            <div className="flex-1 cursor-pointer" onClick={() => handleSelectExistingCustomer(customer)}>
+                            <div className="flex-1 cursor-pointer" onClick={() => handleSelectExistingCustomer(customer)} translate="no">
                               <p className="font-medium">{formatName(customer.firstName, customer.lastName)}</p>
                               <p className="text-sm text-gray-600">{customer.email}</p>
                               {customer.phone && (

@@ -36,6 +36,7 @@ A production-grade, multi-language client management system for healthcare and w
 19. [Scalability Analysis](#19-scalability-analysis)
 20. [Adding New Features](#20-adding-new-features)
 21. [Common Issues & Fixes](#21-common-issues--fixes)
+22. [Debug Diaries — Bugs, Root Causes & Fixes](#22-debug-diaries--bugs-root-causes--fixes)
 
 ---
 
@@ -1527,6 +1528,83 @@ rules: {
   "react/no-unescaped-entities": "warn",
 }
 ```
+
+---
+
+---
+
+## 22. Debug Diaries — Bugs, Root Causes & Fixes
+
+A running log of interesting, non-obvious bugs encountered in production. These are worth documenting because the symptoms are misleading, the root causes are subtle, and the fixes are small but the reasoning behind them matters.
+
+---
+
+### #001 — Korean Names Crashing React in Microsoft Edge
+
+**Date discovered:** 2026-03-27
+**Affected flow:** Add New Record → Existing Customer → Search
+**Affected browsers:** Microsoft Edge (Chromium), any browser with auto-translate enabled
+**Symptom in console:**
+```
+Uncaught Error: Minified React error #418
+Uncaught NotFoundError: Failed to execute 'insertBefore' on 'Node':
+  The node before which the new node is to be inserted is not a child of this node.
+```
+**Symptom for user:** The app crashes silently mid-search. No API errors visible in the network tab. Only reproducible with specific Korean names (e.g. `김동훈`) — Latin names work fine.
+
+#### Root Cause
+
+Edge ships with a built-in **Microsoft Translator**. When it detects text in a language that differs from the browser's UI language (e.g., Korean text inside an otherwise English page), it automatically wraps individual words and characters in `<span>` elements to annotate them for translation — **directly mutating the real DOM**.
+
+React maintains a virtual DOM and computes the minimal set of DOM operations needed to reach the correct UI state. When Edge injects extra `<span>` nodes into the DOM, React's virtual DOM no longer matches the real DOM. On the next render cycle, React attempts to `insertBefore` a node relative to what it believes is its sibling — but that sibling has been moved or wrapped by the translator. This throws `NotFoundError`, which React surfaces as error `#418` (a DOM reconciliation failure / hydration mismatch).
+
+**Why only certain names?** The translator's language-detection triggers on character density. A name like `김동훈` (3 Korean characters) reliably triggers it; a name with only 1–2 characters sometimes does not, making the bug appear intermittent.
+
+**Why only Edge?** Chrome's translation is opt-in via an extension; Edge's Microsoft Translator activates automatically based on detected language. Safari on iOS has the same architecture but a different triggering heuristic.
+
+**Why no API errors in the logs?** The crash happens entirely in the browser's render layer after the API response has already been received and rendered. The server is healthy — this is a pure client-side DOM corruption issue.
+
+#### Fix
+
+Three changes, each addressing a different layer of the problem:
+
+**1. `translate="no"` on `<html>` — primary fix**
+File: `src/app/[locale]/layout.tsx`
+```tsx
+<html lang={locale} translate="no">
+```
+This is the W3C-standard attribute that instructs all browsers and translation tools (Edge Translator, Google Translate, DeepL browser extension) not to auto-translate this document. For a database app that stores real patient names and clinical notes, this is always the correct setting — you never want the browser silently rewriting stored data.
+
+This attribute has **zero effect on `next-intl`** or any other app-level translation logic. It only stops the browser's own automatic translation layer from touching the DOM.
+
+**2. `translate="no"` on the customer name container — belt-and-suspenders**
+File: `src/app/[locale]/add-record/page.tsx`
+```tsx
+<div className="flex-1 cursor-pointer" onClick={...} translate="no">
+```
+In case a user has a browser extension that ignores the `<html>` attribute, scoping `translate="no"` directly to the element that renders Korean names provides a second line of defence on the exact node that was crashing.
+
+**3. `spellCheck={false}` and `autoComplete="off"` on the search input**
+File: `src/app/[locale]/add-record/page.tsx`
+```tsx
+<Input spellCheck={false} autoComplete="off" ... />
+```
+Browser spellcheck on an input field can also inject DOM annotations (especially Edge's Microsoft Editor, which adds grammar/style suggestions). Disabling it on the search input prevents any browser-side DOM mutation on the text the user is actively typing.
+
+#### What `translate="no"` does NOT affect
+
+| Feature | Affected? |
+|---|---|
+| `next-intl` Korean ↔ English UI switching | No — this is app code, not browser translation |
+| API calls and database queries | No |
+| User-typed input in forms | No |
+| Copy-paste of Korean text | No |
+| Search / filter functionality | No |
+| The "Translate this page?" browser prompt | Yes — it will no longer appear (intentional) |
+
+#### Lesson
+
+When a React crash is **browser-specific**, **non-reproducible via network inspection**, and **correlated with a specific character set** — look at browser-level DOM mutation first (translation, spellcheck, grammar tools, accessibility extensions) before assuming an application bug. The DOM React reconciles against is not always the DOM only React has written.
 
 ---
 
