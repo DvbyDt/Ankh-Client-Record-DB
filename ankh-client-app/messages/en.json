@@ -127,6 +127,7 @@
     "locationNamePlaceholder": "e.g. Studio A, Room 201",
     "createLocation": "Create Location",
     "customerEditTitle": "Edit Customer",
+    "name": "Name",
     "firstName": "First Name",
     "lastName": "Last Name",
     "email": "Email",
@@ -162,7 +163,10 @@
     "lessonContent": "Lesson Content",
     "instructor": "Instructor",
     "symptoms": "Symptoms",
-    "improvements": "Customer Improvements"
+    "improvements": "Customer Improvements",
+    "editRecord": "Edit Record",
+    "deleteRecord": "Remove",
+    "editSaved": "Record updated!"
   },
   "AddRecord": {
     "title": "Add New Lesson Record",
@@ -189,6 +193,9 @@
     "lessonTypeIndividual": "Individual",
     "customerDetails": "Customer Details",
     "addCustomer": "Add Another Customer",
+    "addGroupCustomer": "Add Another Customer to Group",
+    "name": "Full Name",
+    "namePlaceholder": "Full name",
     "firstName": "First Name",
     "lastName": "Last Name",
     "symptomsLabel": "Symptoms",
@@ -197,17 +204,20 @@
     "creating": "Creating...",
     "createRecord": "Create Lesson Record",
     "successMessage": "Lesson record created successfully!",
-    "errorMessage": "Failed to create lesson record"
-    ,
+    "errorMessage": "Failed to create lesson record",
+    "addInstructor": "+ Add Instructor",
+    "lessonContent": "Lesson Content",
+    "lessonContentPlaceholder": "Notes about this lesson (optional)",
     "searchFailed": "Failed to search customers. Please try again.",
     "searchFailedGeneric": "An error occurred while searching. Please try again.",
-    "requiredEditFields": "First name, last name, and email are required",
+    "requiredEditFields": "Full name and email are required",
     "updateCustomerFailed": "Failed to update customer",
     "updateCustomerGeneric": "An error occurred while updating the customer",
     "placeholderFirstName": "First name",
     "placeholderLastName": "Last name",
     "placeholderEmail": "Email",
-    "placeholderPhone": "Phone"
+    "placeholderPhone": "Phone",
+    "placeholderName": "Full name"
   },
   "UserManagement": {
     "title": "Add New User",
@@ -256,6 +266,7 @@
     "createUser": "Create User",
     "createNewUser": "Create New User",
     "createNewUserDesc": "Add a new instructor or manager to the system",
+    "name": "Full Name",
     "firstName": "First Name",
     "lastName": "Last Name",
     "username": "Username",
@@ -280,6 +291,13 @@
     "leaveBlankToKeepCurrent": "Leave blank to keep current",
     "savedSuccessfully": "Saved successfully!",
     "searchHintTitle": "Search for a user above",
-    "searchHintDesc": "Try searching by name or email address"
+    "searchHintDesc": "Try searching by name or email address",
+    "name": "Full Name",
+    "editLessonTitle": "Edit Lesson Record",
+    "deleteLessonRecord": "Remove Record",
+    "lessonEditSaved": "Record updated!",
+    "lessonEditFailed": "Failed to update record",
+    "deleteLesson": "Delete Lesson Record",
+    "deleteLessonMessage": "Remove this lesson record? This cannot be undone."
   }
 }

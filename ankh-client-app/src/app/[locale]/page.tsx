@@ -5,7 +5,7 @@ import {
   Search, Loader2, AlertCircle, Users, Plus, Download,
   Upload, LogIn, UserPlus, MapPin, Trash2, Settings,
   ChevronDown, ChevronUp, X, Eye, Edit3, BookOpen,
-  Activity, LogOut
+  Activity, LogOut, Pencil
 } from 'lucide-react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
@@ -13,6 +13,13 @@ import LanguageSwitcher from '@/components/LanguageSwitcher'
 import Cookies from 'js-cookie'
 import React from 'react'
 import { UploadModal } from '@/components/UploadModal'
+
+// Helper: split "Full Name" → { firstName, lastName }
+const splitFullName = (fullName: string): { firstName: string; lastName: string } => {
+  const parts = fullName.trim().split(/\s+/)
+  if (parts.length <= 1) return { firstName: parts[0] || '', lastName: '' }
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
 
 // ─── Debounce hook ───────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -296,12 +303,14 @@ export default function HomePage() {
   const [detailModal, setDetailModal] = useState<Customer | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [editModal, setEditModal] = useState<Customer | null>(null)
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  // Issue 1 & 5: editForm now uses a single 'name' field
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '' })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
   const [userModal, setUserModal] = useState<User | null>(null)
   const [addUserModal, setAddUserModal] = useState(false)
-  const [addUserForm, setAddUserForm] = useState({ username: '', password: '', role: 'INSTRUCTOR' as UserRole, firstName: '', lastName: '', email: '' })
+  // Issue 1: addUserForm uses 'name' instead of firstName+lastName
+  const [addUserForm, setAddUserForm] = useState({ username: '', password: '', role: 'INSTRUCTOR' as UserRole, name: '', email: '' })
   const [addUserLoading, setAddUserLoading] = useState(false)
   const [addUserError, setAddUserError] = useState('')
   const [addLocModal, setAddLocModal] = useState(false)
@@ -309,8 +318,13 @@ export default function HomePage() {
   const [locLoading, setLocLoading] = useState(false)
   const [locError, setLocError] = useState('')
 
-  // ── Upload modal — just the open/close flag; all logic lives in UploadModal ──
+  // ── Upload modal ──
   const [uploadModal, setUploadModal] = useState(false)
+
+  // ── Issue 3: Edit/Delete individual lesson records ──
+  const [editingLpId, setEditingLpId] = useState<string | null>(null)
+  const [editLpForm, setEditLpForm] = useState<{ symptoms: string; improvements: string }>({ symptoms: '', improvements: '' })
+  const [editLpLoading, setEditLpLoading] = useState(false)
 
   // ── Confirm / Toast ──
   const [confirm, setConfirm] = useState<{ title: string; message: string; fn: () => void } | null>(null)
@@ -377,13 +391,19 @@ export default function HomePage() {
     Cookies.remove('jwt-token'); Cookies.remove('current-user-data')
     setCurrentUser(null); setIsLoggedIn(false); setResults([]); setAllCustomers([]); setAllUsers([])
   }
-  const openEdit = (c: Customer) => { setEditModal(c); setEditForm({ firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone || '' }); setEditError('') }
+  // Issue 1: openEdit now sets a single 'name' field
+  const openEdit = (c: Customer) => {
+    setEditModal(c)
+    setEditForm({ name: formatName(c.firstName, c.lastName), email: c.email, phone: c.phone || '' })
+    setEditError('')
+  }
   const saveEdit = async () => {
-    if (!editModal || !editForm.firstName || !editForm.lastName || !editForm.email) { setEditError('All fields required.'); return }
+    if (!editModal || !editForm.name || !editForm.email) { setEditError('All fields required.'); return }
+    const { firstName, lastName } = splitFullName(editForm.name)
     setEditLoading(true); setEditError('')
     const token = Cookies.get('jwt-token')
     try {
-      const r = await fetch(`/api/customers/${editModal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(editForm) })
+      const r = await fetch(`/api/customers/${editModal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ firstName, lastName, email: editForm.email, phone: editForm.phone }) })
       if (r.ok) {
         const { customer: u } = await r.json()
         setAllCustomers(p => p.map(c => c.id === u.id ? { ...c, ...u } : c))
@@ -402,12 +422,14 @@ export default function HomePage() {
       setConfirm(null)
     }})
   }
+  // Issue 1: handleAddUser splits name before API call
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault(); setAddUserLoading(true); setAddUserError('')
+    const { firstName, lastName } = splitFullName(addUserForm.name)
     const token = Cookies.get('jwt-token')
     try {
-      const r = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(addUserForm) })
-      if (r.ok) { setAddUserModal(false); setAddUserForm({ username: '', password: '', role: 'INSTRUCTOR', firstName: '', lastName: '', email: '' }); flash('User created!'); if (showAllUsers) fetchAllUsers() }
+      const r = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...addUserForm, firstName, lastName }) })
+      if (r.ok) { setAddUserModal(false); setAddUserForm({ username: '', password: '', role: 'INSTRUCTOR', name: '', email: '' }); flash('User created!'); if (showAllUsers) fetchAllUsers() }
       else { const d = await r.json(); setAddUserError(d.error || 'Failed.') }
     } catch { setAddUserError('Unexpected error.') } finally { setAddUserLoading(false) }
   }
@@ -425,6 +447,68 @@ export default function HomePage() {
       const r = await fetch('/api/locations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: locName.trim() }) })
       if (r.ok) { setAddLocModal(false); setLocName(''); flash('Location created!') } else { const d = await r.json(); setLocError(d.error || 'Failed.') }
     } catch { setLocError('Unexpected error.') } finally { setLocLoading(false) }
+  }
+
+  // ── Issue 3: Lesson record edit/delete handlers ──
+  const startEditLp = (lp: CustomerLessonParticipant) => {
+    setEditingLpId(lp.id)
+    setEditLpForm({ symptoms: lp.customerSymptoms || '', improvements: lp.customerImprovements || '' })
+  }
+  const cancelEditLp = () => { setEditingLpId(null) }
+  const saveLpEdit = async (lp: CustomerLessonParticipant) => {
+    setEditLpLoading(true)
+    const token = Cookies.get('jwt-token')
+    try {
+      const r = await fetch(`/api/lessons/${lp.lesson.id}/participants/${detailModal?.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerSymptoms: editLpForm.symptoms, customerImprovements: editLpForm.improvements })
+      })
+      if (r.ok) {
+        setDetailModal(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            lessonParticipants: prev.lessonParticipants?.map(p =>
+              p.id === lp.id
+                ? { ...p, customerSymptoms: editLpForm.symptoms, customerImprovements: editLpForm.improvements }
+                : p
+            )
+          }
+        })
+        setEditingLpId(null)
+        flash(t('CustomerSearch.editSaved'))
+      } else {
+        flash(t('ManageUsers.lessonEditFailed'))
+      }
+    } catch {
+      flash(t('ManageUsers.lessonEditFailed'))
+    } finally {
+      setEditLpLoading(false)
+    }
+  }
+  const deleteLp = (lp: CustomerLessonParticipant) => {
+    setConfirm({
+      title: t('ManageUsers.deleteLesson'),
+      message: t('ManageUsers.deleteLessonMessage'),
+      fn: async () => {
+        const token = Cookies.get('jwt-token')
+        const r = await fetch(`/api/lessons/${lp.lesson.id}/participants/${detailModal?.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (r.ok) {
+          setDetailModal(prev => {
+            if (!prev) return prev
+            return { ...prev, lessonParticipants: prev.lessonParticipants?.filter(p => p.id !== lp.id) }
+          })
+          flash(t('ManageUsers.deleteLessonRecord'))
+        } else {
+          flash('Failed to delete lesson record.')
+        }
+        setConfirm(null)
+      }
+    })
   }
 
   const filteredUsers = allUsers.filter(u => roleFilter === 'ALL' || u.role === roleFilter)
@@ -502,6 +586,19 @@ export default function HomePage() {
           {isLoggedIn && (
             <div className="space-y-6 fade-in">
 
+              {/* Issue 6: Instructor banner */}
+              {currentUser?.role === 'INSTRUCTOR' && (
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-blue-900">Instructor View</p>
+                    <p className="text-xs text-blue-600 mt-0.5">You can add lesson records and search customers. Admin features are available to managers only.</p>
+                  </div>
+                  <Btn onClick={() => router.push(`/${locale}/add-record`)} className="flex-shrink-0">
+                    <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
+                  </Btn>
+                </div>
+              )}
+
               {/* ── Toolbar ── */}
               <div className="bg-white rounded-2xl border border-gray-100 px-5 py-5 shadow-sm space-y-4">
                 <div className="flex items-start justify-between gap-4">
@@ -520,12 +617,16 @@ export default function HomePage() {
                   <Btn onClick={() => router.push(`/${locale}/add-record`)}>
                     <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
                   </Btn>
+                  {/* Issue 6: Export CSV available to all (including instructors) */}
                   <a href="/api/export-csv" download="customer_records.csv">
                     <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
                   </a>
-                  <Btn variant="secondary" onClick={() => setUploadModal(true)}>
-                    <Upload className="w-3.5 h-3.5" />{t('HomePage.importCSV')}
-                  </Btn>
+                  {/* Issue 6: Import CSV only for managers */}
+                  {currentUser?.role === 'MANAGER' && (
+                    <Btn variant="secondary" onClick={() => setUploadModal(true)}>
+                      <Upload className="w-3.5 h-3.5" />{t('HomePage.importCSV')}
+                    </Btn>
+                  )}
                 </div>
 
                 {/* Row 2 — manager-only actions */}
@@ -615,7 +716,7 @@ export default function HomePage() {
                       {allCustomers.length === 0
                         ? <div className="px-6 py-10 text-center text-sm text-gray-400">{t('HomePage.noCustomersFound')}</div>
                         : allCustomers.map(c => (
-                          <div key={c.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
+                          <div key={c.id} className="flex items-center gap-2 sm:gap-4 px-4 sm:px-6 py-3.5 hover:bg-gray-50 transition-colors group">
                             <Avatar name={`${c.firstName} ${c.lastName}`} color="green" />
                             <div className="flex-1 min-w-0">
                               <button onClick={() => fetchDetail(c.id)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(c.firstName, c.lastName)}</button>
@@ -679,7 +780,8 @@ export default function HomePage() {
                             <p className="text-sm font-medium text-gray-900 truncate">{formatName(c.firstName, c.lastName)}</p>
                             <p className="text-xs text-gray-400 truncate">{c.email}{c.phone ? ` · ${c.phone}` : ''}</p>
                           </div>
-                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* Issue 5: action buttons always visible on mobile */}
+                          <div className="flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             <button onClick={e => { e.stopPropagation(); fetchDetail(c.id) }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                               <Eye className="w-3 h-3" />View
                             </button>
@@ -764,10 +866,11 @@ export default function HomePage() {
       </ModalShell>
 
       {/* Customer detail */}
-      <ModalShell open={!!detailModal} onClose={() => setDetailModal(null)} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
+      <ModalShell open={!!detailModal} onClose={() => { setDetailModal(null); setEditingLpId(null) }} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
         {detailModal && (
           <div className="space-y-5">
-            <div className="grid grid-cols-3 gap-3">
+            {/* Issue 5: grid-cols-1 sm:grid-cols-3 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { label: t('HomePage.email'), value: detailModal.email },
                 { label: t('HomePage.phone'), value: detailModal.phone || '—' },
@@ -789,19 +892,76 @@ export default function HomePage() {
               ) : detailModal.lessonParticipants?.length ? (
                 <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
                   {detailModal.lessonParticipants.map(lp => (
-                    <div key={lp.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-colors">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
-                          <Badge>{lp.lesson.lessonType}</Badge>
-                          {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
-                          {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                    <div key={lp.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-colors group">
+                      {/* Issue 3: view vs edit mode per lesson card */}
+                      {editingLpId === lp.id ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                            <Badge>{lp.lesson.lessonType}</Badge>
+                            {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.symptoms')}</label>
+                            <textarea
+                              className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                              rows={2}
+                              value={editLpForm.symptoms}
+                              onChange={e => setEditLpForm(p => ({ ...p, symptoms: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.improvements')}</label>
+                            <textarea
+                              className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                              rows={2}
+                              value={editLpForm.improvements}
+                              onChange={e => setEditLpForm(p => ({ ...p, improvements: e.target.value }))}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Btn variant="secondary" size="sm" onClick={cancelEditLp} disabled={editLpLoading}><X className="w-3 h-3" />{t('Common.cancel')}</Btn>
+                            <Btn size="sm" onClick={() => saveLpEdit(lp)} disabled={editLpLoading}>
+                              {editLpLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                              {t('Common.save')}
+                            </Btn>
+                          </div>
                         </div>
-                        <span className="text-xs text-gray-400">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
-                      </div>
-                      {lp.lesson.lessonContent && <p className="text-xs text-gray-400 italic mb-2">{lp.lesson.lessonContent}</p>}
-                      {lp.customerSymptoms && <p className="text-xs text-gray-600"><span className="font-semibold">{t('CustomerSearch.symptoms')}:</span> {lp.customerSymptoms}</p>}
-                      {lp.customerImprovements && <p className="text-xs text-gray-600 mt-0.5"><span className="font-semibold">{t('CustomerSearch.improvements')}:</span> {lp.customerImprovements}</p>}
+                      ) : (
+                        <>
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                              <Badge>{lp.lesson.lessonType}</Badge>
+                              {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
+                              {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                              <span className="text-xs text-gray-400 hidden sm:block">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
+                              {/* Issue 3: Edit and Delete buttons (visible on hover) */}
+                              <button
+                                onClick={() => startEditLp(lp)}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100"
+                                title={t('CustomerSearch.editRecord')}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              {currentUser?.role === 'MANAGER' && (
+                                <button
+                                  onClick={() => deleteLp(lp)}
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                                  title={t('CustomerSearch.deleteRecord')}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {lp.lesson.lessonContent && <p className="text-xs text-gray-400 italic mb-2">{lp.lesson.lessonContent}</p>}
+                          {lp.customerSymptoms && <p className="text-xs text-gray-600"><span className="font-semibold">{t('CustomerSearch.symptoms')}:</span> {lp.customerSymptoms}</p>}
+                          {lp.customerImprovements && <p className="text-xs text-gray-600 mt-0.5"><span className="font-semibold">{t('CustomerSearch.improvements')}:</span> {lp.customerImprovements}</p>}
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -817,14 +977,11 @@ export default function HomePage() {
         )}
       </ModalShell>
 
-      {/* Edit customer */}
+      {/* Edit customer — Issue 1 & 5: single name field, grid-cols-1 sm:grid-cols-2 */}
       <ModalShell open={!!editModal} onClose={() => setEditModal(null)} title={t('HomePage.customerEditTitle')}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t('HomePage.firstName')} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
-            <Field label={t('HomePage.lastName')} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
-          </div>
-          <Field label={t('HomePage.email')} type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
+          <Field label={t('HomePage.name')} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" required />
+          <Field label={t('HomePage.email')} type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} required />
           <Field label={t('HomePage.phone')} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder={t('Common.optional')} />
           {editError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{editError}</div>}
           <div className="flex gap-2 pt-1">
@@ -853,13 +1010,10 @@ export default function HomePage() {
         )}
       </ModalShell>
 
-      {/* Add user */}
+      {/* Add user — Issue 1 & 5: single name field, grid-cols-1 sm:grid-cols-2 */}
       <ModalShell open={addUserModal} onClose={() => setAddUserModal(false)} title={t('HomePage.addNewUserTitle')}>
         <form onSubmit={handleAddUser} className="space-y-3.5">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t('HomePage.firstName')} value={addUserForm.firstName} onChange={e => setAddUserForm({ ...addUserForm, firstName: e.target.value })} required />
-            <Field label={t('HomePage.lastName')} value={addUserForm.lastName} onChange={e => setAddUserForm({ ...addUserForm, lastName: e.target.value })} required />
-          </div>
+          <Field label={t('Dialogs.name')} value={addUserForm.name} onChange={e => setAddUserForm({ ...addUserForm, name: e.target.value })} placeholder="Full name" required />
           <Field label={t('HomePage.email')} type="email" value={addUserForm.email} onChange={e => setAddUserForm({ ...addUserForm, email: e.target.value })} required />
           <Field label={t('HomePage.username')} value={addUserForm.username} onChange={e => setAddUserForm({ ...addUserForm, username: e.target.value })} required />
           <Field label={t('Dialogs.password')} type="password" value={addUserForm.password} onChange={e => setAddUserForm({ ...addUserForm, password: e.target.value })} required />

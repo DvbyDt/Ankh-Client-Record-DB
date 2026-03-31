@@ -6,6 +6,13 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import Cookies from 'js-cookie'
 
+// Helper: split "Full Name" → { firstName, lastName }
+const splitFullName = (fullName: string): { firstName: string; lastName: string } => {
+  const parts = fullName.trim().split(/\s+/)
+  if (parts.length <= 1) return { firstName: parts[0] || '', lastName: '' }
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
+
 interface UserData {
   id: string
   username?: string
@@ -93,7 +100,7 @@ export default function ManageUsersPage() {
   const [searched, setSearched] = useState(false)
 
   const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', role: '', password: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: '', password: '' })
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [saveOk, setSaveOk] = useState(false)
@@ -119,7 +126,7 @@ export default function ManageUsersPage() {
 
   const openEdit = (u: UserData) => {
     setEditId(u.id)
-    setEditForm({ firstName: u.firstName, lastName: u.lastName, email: u.email, role: u.role, password: '' })
+    setEditForm({ name: `${u.firstName} ${u.lastName}`.trim(), email: u.email, role: u.role, password: '' })
     setSaveErr(null); setSaveOk(false)
   }
 
@@ -127,13 +134,14 @@ export default function ManageUsersPage() {
 
   const saveEdit = async () => {
     if (!editId) return
-    if (!editForm.firstName.trim() || !editForm.email.trim()) { setSaveErr('First name and email are required.'); return }
+    if (!editForm.name.trim() || !editForm.email.trim()) { setSaveErr('Full name and email are required.'); return }
+    const { firstName, lastName } = splitFullName(editForm.name)
     setSaving(true); setSaveErr(null); setSaveOk(false)
     const token = Cookies.get('jwt-token')
     try {
       const body: Record<string, string> = {
-        firstName: editForm.firstName,
-        lastName: editForm.lastName,
+        firstName,
+        lastName,
         email: editForm.email,
         role: editForm.role,
       }
@@ -267,25 +275,19 @@ export default function ManageUsersPage() {
                     {editId === user.id && (
                       <div className="px-6 py-5 bg-slate-50/60 fade">
                         <div className="flex items-center gap-3 mb-5">
-                          <Avatar firstName={editForm.firstName || user.firstName} lastName={editForm.lastName || user.lastName} />
+                          <Avatar firstName={splitFullName(editForm.name).firstName || user.firstName} lastName={splitFullName(editForm.name).lastName || user.lastName} />
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{t('ManageUsers.editingUser', { name: `${user.firstName} ${user.lastName}` })}</p>
                             <p className="text-xs text-slate-400">{t('ManageUsers.leavePasswordBlank')}</p>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                           <FieldInput
-                            label={t('HomePage.firstName')}
-                            value={editForm.firstName}
-                            onChange={v => setEditForm(p => ({ ...p, firstName: v }))}
-                            placeholder={t('AddRecord.placeholderFirstName')}
-                          />
-                          <FieldInput
-                            label={t('HomePage.lastName')}
-                            value={editForm.lastName}
-                            onChange={v => setEditForm(p => ({ ...p, lastName: v }))}
-                            placeholder={t('AddRecord.placeholderLastName')}
+                            label={t('ManageUsers.name')}
+                            value={editForm.name}
+                            onChange={v => setEditForm(p => ({ ...p, name: v }))}
+                            placeholder="Full name"
                           />
                           <FieldInput
                             label={t('HomePage.email')}

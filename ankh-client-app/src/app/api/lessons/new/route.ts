@@ -6,13 +6,14 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json();
     console.log('Incoming request payload:', requestBody);
 
-    const { 
-        lessonType, 
+    const {
+        lessonType,
         lessonDate,
         lessonContent,
-        instructorId, 
-        location, 
-        customers 
+        instructorId,
+        instructorIds,
+        location,
+        customers
     } = requestBody;
 
     if (!lessonType || !instructorId || !location || !customers) {
@@ -24,18 +25,18 @@ export async function POST(request: NextRequest) {
 
     try {
         // Create the lesson
-                const parsedLessonDate = lessonDate ? new Date(lessonDate) : null
-                const lessonCreatedAt = parsedLessonDate && !Number.isNaN(parsedLessonDate.getTime())
-                    ? parsedLessonDate
-                    : undefined
+        const parsedLessonDate = lessonDate ? new Date(lessonDate) : null
+        const lessonCreatedAt = parsedLessonDate && !Number.isNaN(parsedLessonDate.getTime())
+            ? parsedLessonDate
+            : undefined
 
-                const newLesson = await prisma.lesson.create({
+        const newLesson = await prisma.lesson.create({
             data: {
                 lessonType: lessonType,
-                                lessonContent: lessonContent || null,
-                                ...(lessonCreatedAt ? { createdAt: lessonCreatedAt } : {}),
+                lessonContent: lessonContent || null,
+                ...(lessonCreatedAt ? { createdAt: lessonCreatedAt } : {}),
                 instructor: {
-                    connect: { id: instructorId } 
+                    connect: { id: instructorId }
                 },
                 location: {
                     connect: { id: location }
@@ -49,6 +50,23 @@ export async function POST(request: NextRequest) {
                 locationId: true
             },
         });
+
+        // Create additional instructor assignments if instructorIds array provided
+        if (Array.isArray(instructorIds) && instructorIds.length > 0) {
+            const additionalIds = instructorIds.filter(
+                (id: string) => id && id !== instructorId
+            )
+            if (additionalIds.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (prisma as any).lessonInstructor.createMany({
+                    data: additionalIds.map((userId: string) => ({
+                        lessonId: newLesson.id,
+                        userId
+                    })),
+                    skipDuplicates: true
+                })
+            }
+        }
 
         // Process customers array
         for (const customerData of customers) {
