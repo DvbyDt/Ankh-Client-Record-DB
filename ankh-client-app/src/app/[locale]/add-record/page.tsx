@@ -1,17 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Loader2, ArrowLeft, UserPlus, Users, Edit, Check, X } from 'lucide-react'
+import { Search, Loader2, ArrowLeft, UserPlus, Users, Edit, Check, X, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useRouter, usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import Cookies from 'js-cookie'
+
+// Helper: split "Full Name" → { firstName, lastName }
+const splitFullName = (fullName: string): { firstName: string; lastName: string } => {
+  const parts = fullName.trim().split(/\s+/)
+  if (parts.length <= 1) return { firstName: parts[0] || '', lastName: '' }
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
 
 interface User {
   id: string
@@ -46,8 +52,9 @@ interface Customer {
 
 interface CustomerFormData {
   id?: string
-  firstName: string
-  lastName: string
+  name: string       // Single full-name field (UI only)
+  firstName: string  // Split before submit
+  lastName: string   // Split before submit
   email: string
   phone?: string
   symptoms: string
@@ -55,7 +62,7 @@ interface CustomerFormData {
 }
 
 interface LessonFormData {
-  instructorId: string
+  instructorIds: string[]   // Array of instructor IDs (first is primary)
   locationId: string
   lessonType: 'Group' | 'Individual'
   customers: CustomerFormData[]
@@ -76,7 +83,7 @@ export default function AddRecordPage() {
     }
     return `${firstName} ${lastName}`
   }
-  
+
   // Search state
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<Customer[]>([])
@@ -84,23 +91,23 @@ export default function AddRecordPage() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
-  
-  // Edit mode state
+
+  // Edit mode state (search screen)
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
-  const [editFormData, setEditFormData] = useState<{firstName: string; lastName: string; email: string; phone: string}>({firstName: '', lastName: '', email: '', phone: ''})
+  const [editFormData, setEditFormData] = useState<{ name: string; email: string; phone: string }>({ name: '', email: '', phone: '' })
   const [isEditingSaving, setIsEditingSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
-  
+
   // Form data
   const [instructors, setInstructors] = useState<User[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [lessonForm, setLessonForm] = useState<LessonFormData>({
-    instructorId: '',
+    instructorIds: [''],
     locationId: '',
     lessonType: 'Group',
-    customers: [{ firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
+    customers: [{ name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
   })
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitMessage, setSubmitMessage] = useState('')
   const [submitError, setSubmitError] = useState('')
@@ -178,22 +185,19 @@ export default function AddRecordPage() {
 
   const handleSelectExistingCustomer = (customer: Customer) => {
     setSelectedCustomer(customer)
-    
-    // Get the most recent symptoms and improvements from lesson history
-    const latestLesson = customer.lessonParticipants?.[0]
-    const previousSymptoms = latestLesson?.customerSymptoms || ''
-    const previousImprovements = latestLesson?.customerImprovements || ''
-    
+
+    // Issue 2 fix: symptoms/improvements start empty for new lesson
     setLessonForm({
       ...lessonForm,
       customers: [{
         id: customer.id,
+        name: formatName(customer.firstName, customer.lastName),
         firstName: customer.firstName,
         lastName: customer.lastName,
         email: customer.email,
         phone: customer.phone || '',
-        symptoms: previousSymptoms,
-        improvements: previousImprovements
+        symptoms: '',
+        improvements: ''
       }]
     })
     setStep('form')
@@ -202,8 +206,7 @@ export default function AddRecordPage() {
   const handleEditCustomer = (customer: Customer) => {
     setEditingCustomerId(customer.id)
     setEditFormData({
-      firstName: customer.firstName,
-      lastName: customer.lastName,
+      name: formatName(customer.firstName, customer.lastName),
       email: customer.email,
       phone: customer.phone || ''
     })
@@ -213,10 +216,12 @@ export default function AddRecordPage() {
   const handleSaveCustomerEdit = async () => {
     if (!editingCustomerId) return
 
-    if (!editFormData.firstName.trim() || !editFormData.lastName.trim() || !editFormData.email.trim()) {
+    if (!editFormData.name.trim() || !editFormData.email.trim()) {
       setEditError(t('AddRecord.requiredEditFields'))
       return
     }
+
+    const { firstName, lastName } = splitFullName(editFormData.name)
 
     setIsEditingSaving(true)
     setEditError(null)
@@ -230,19 +235,18 @@ export default function AddRecordPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          firstName: editFormData.firstName,
-          lastName: editFormData.lastName,
+          firstName,
+          lastName,
           email: editFormData.email,
           phone: editFormData.phone || null
         })
       })
 
       if (response.ok) {
-        // Update the search results
         setSearchResults(prev =>
           prev.map(customer =>
             customer.id === editingCustomerId
-              ? { ...customer, ...editFormData }
+              ? { ...customer, firstName, lastName, email: editFormData.email, phone: editFormData.phone }
               : customer
           )
         )
@@ -261,14 +265,18 @@ export default function AddRecordPage() {
 
   const handleCancelEdit = () => {
     setEditingCustomerId(null)
-    setEditFormData({firstName: '', lastName: '', email: '', phone: ''})
+    setEditFormData({ name: '', email: '', phone: '' })
     setEditError(null)
   }
 
+  // Issue 7: Show "Add Another Customer" for Group lessons regardless of customerType
+  const showAddCustomer = lessonForm.lessonType === 'Group'
+
   const addCustomerRow = () => {
+    // For existing customer flow, additional rows are new customers (editable)
     setLessonForm({
       ...lessonForm,
-      customers: [...lessonForm.customers, { firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
+      customers: [...lessonForm.customers, { name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
     })
   }
 
@@ -283,6 +291,22 @@ export default function AddRecordPage() {
     setLessonForm({ ...lessonForm, customers: newCustomers })
   }
 
+  // Issue 4: instructor management
+  const updateInstructorId = (index: number, value: string) => {
+    const newIds = [...lessonForm.instructorIds]
+    newIds[index] = value
+    setLessonForm({ ...lessonForm, instructorIds: newIds })
+  }
+
+  const addInstructor = () => {
+    setLessonForm({ ...lessonForm, instructorIds: [...lessonForm.instructorIds, ''] })
+  }
+
+  const removeInstructor = (index: number) => {
+    const newIds = lessonForm.instructorIds.filter((_, i) => i !== index)
+    setLessonForm({ ...lessonForm, instructorIds: newIds })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -290,12 +314,24 @@ export default function AddRecordPage() {
     setSubmitMessage('')
 
     try {
-      // Prepare the payload with the correct field names for the API
+      // Split full names before submitting
+      const processedCustomers = lessonForm.customers.map(c => {
+        if (c.name && (!c.firstName || !c.lastName)) {
+          const { firstName, lastName } = splitFullName(c.name)
+          return { ...c, firstName, lastName }
+        }
+        return c
+      })
+
+      const primaryInstructorId = lessonForm.instructorIds[0]
+      const allInstructorIds = lessonForm.instructorIds.filter(id => id.trim() !== '')
+
       const payload = {
         lessonType: lessonForm.lessonType,
-        instructorId: lessonForm.instructorId,
-        location: lessonForm.locationId, // API expects 'location', not 'locationId'
-        customers: lessonForm.customers
+        instructorId: primaryInstructorId,
+        instructorIds: allInstructorIds,
+        location: lessonForm.locationId,
+        customers: processedCustomers
       }
 
       const response = await fetch('/api/lessons/new', {
@@ -324,7 +360,7 @@ export default function AddRecordPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 via-[#f7f7f5] to-[#f7f7f5]">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-5 h-16 flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-5 h-16 flex items-center gap-3 flex-wrap">
           <button
             onClick={() => router.push(`/${locale}`)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors"
@@ -351,7 +387,7 @@ export default function AddRecordPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card 
+              <Card
                 className="cursor-pointer rounded-2xl hover:border-gray-300 hover:shadow-md transition-all"
                 onClick={() => handleCustomerTypeSelect('new')}
               >
@@ -373,7 +409,7 @@ export default function AddRecordPage() {
                 </CardContent>
               </Card>
 
-              <Card 
+              <Card
                 className="cursor-pointer rounded-2xl hover:border-gray-300 hover:shadow-md transition-all"
                 onClick={() => handleCustomerTypeSelect('existing')}
               >
@@ -475,21 +511,13 @@ export default function AddRecordPage() {
                       {editingCustomerId === customer.id && (
                         <Card className="rounded-2xl border-gray-200 bg-gray-50">
                           <CardContent className="pt-6 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4">
                               <div>
-                                <Label>{t('AddRecord.firstName')} *</Label>
+                                <Label>{t('AddRecord.name')} *</Label>
                                 <Input
-                                  value={editFormData.firstName}
-                                  onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
-                                  placeholder={t('AddRecord.placeholderFirstName')}
-                                />
-                              </div>
-                              <div>
-                                <Label>{t('AddRecord.lastName')} *</Label>
-                                <Input
-                                  value={editFormData.lastName}
-                                  onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
-                                  placeholder={t('AddRecord.placeholderLastName')}
+                                  value={editFormData.name}
+                                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                                  placeholder={t('AddRecord.namePlaceholder')}
                                 />
                               </div>
                               <div>
@@ -497,7 +525,7 @@ export default function AddRecordPage() {
                                 <Input
                                   type="email"
                                   value={editFormData.email}
-                                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                                   placeholder={t('AddRecord.placeholderEmail')}
                                 />
                               </div>
@@ -505,7 +533,7 @@ export default function AddRecordPage() {
                                 <Label>{t('Dialogs.phone')}</Label>
                                 <Input
                                   value={editFormData.phone}
-                                  onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
                                   placeholder={t('AddRecord.placeholderPhone')}
                                 />
                               </div>
@@ -579,23 +607,54 @@ export default function AddRecordPage() {
               <CardContent className="space-y-6">
                 {/* Lesson Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="instructor">{t('AddRecord.instructorLabel')} *</Label>
-                    <Select
-                      value={lessonForm.instructorId}
-                      onValueChange={(value) => setLessonForm({ ...lessonForm, instructorId: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('AddRecord.selectInstructor')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {instructors.map((instructor) => (
-                          <SelectItem key={instructor.id} value={instructor.id}>
-                            {formatName(instructor.firstName, instructor.lastName)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+
+                  {/* Issue 4: Multiple instructor selects */}
+                  <div className="md:col-span-2 space-y-2">
+                    <Label>{t('AddRecord.instructorLabel')} *</Label>
+                    {lessonForm.instructorIds.map((instrId, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <Select
+                            value={instrId}
+                            onValueChange={(value) => updateInstructorId(idx, value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('AddRecord.selectInstructor')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {instructors.map((instructor) => (
+                                <SelectItem key={instructor.id} value={instructor.id}>
+                                  {formatName(instructor.firstName, instructor.lastName)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {idx > 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeInstructor(idx)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {lessonForm.instructorIds.length > 0 && lessonForm.instructorIds[lessonForm.instructorIds.length - 1] !== '' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addInstructor}
+                        className="mt-1"
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        {t('AddRecord.addInstructor')}
+                      </Button>
+                    )}
                   </div>
 
                   <div>
@@ -636,88 +695,105 @@ export default function AddRecordPage() {
 
                 {/* Customer Details */}
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-wrap justify-between items-center gap-2">
                     <h3 className="text-lg font-medium">{t('AddRecord.customerDetails')}</h3>
-                    {customerType === 'new' && (
+                    {/* Issue 7: Show Add button for all Group lessons */}
+                    {showAddCustomer && (
                       <Button type="button" onClick={addCustomerRow} variant="outline" size="sm">
-                        {t('AddRecord.addCustomer')}
+                        {t('AddRecord.addGroupCustomer')}
                       </Button>
                     )}
                   </div>
 
-                  {lessonForm.customers.map((customer, index) => (
-                    <Card key={index} className="rounded-2xl border-gray-100">
-                      <CardContent className="pt-6 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <Label>{t('AddRecord.firstName')} *</Label>
-                            <Input
-                              value={customer.firstName}
-                              onChange={(e) => updateCustomerField(index, 'firstName', e.target.value)}
-                              disabled={customerType === 'existing'}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label>{t('AddRecord.lastName')} *</Label>
-                            <Input
-                              value={customer.lastName}
-                              onChange={(e) => updateCustomerField(index, 'lastName', e.target.value)}
-                              disabled={customerType === 'existing'}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label>{t('CustomerSearch.email')} *</Label>
-                            <Input
-                              type="email"
-                              value={customer.email}
-                              onChange={(e) => updateCustomerField(index, 'email', e.target.value)}
-                              disabled={customerType === 'existing'}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label>{t('Dialogs.phone')}</Label>
-                            <Input
-                              value={customer.phone || ''}
-                              onChange={(e) => updateCustomerField(index, 'phone', e.target.value)}
-                              disabled={customerType === 'existing'}
-                            />
-                          </div>
-                        </div>
+                  {lessonForm.customers.map((customer, index) => {
+                    // Issue 7: only the first customer row is disabled when customerType === 'existing'
+                    const isDisabled = customerType === 'existing' && index === 0
 
-                        <div>
-                          <Label>{t('AddRecord.symptomsLabel')}</Label>
-                          <Textarea
-                            value={customer.symptoms}
-                            onChange={(e) => updateCustomerField(index, 'symptoms', e.target.value)}
-                            rows={3}
-                          />
-                        </div>
+                    return (
+                      <Card key={index} className="rounded-2xl border-gray-100">
+                        <CardContent className="pt-6 space-y-4">
+                          {/* Issue 1: Single "Full Name" field */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                              <Label>{t('AddRecord.name')} *</Label>
+                              <Input
+                                value={customer.name}
+                                onChange={(e) => {
+                                  const { firstName, lastName } = splitFullName(e.target.value)
+                                  const newCustomers = [...lessonForm.customers]
+                                  newCustomers[index] = { ...newCustomers[index], name: e.target.value, firstName, lastName }
+                                  setLessonForm({ ...lessonForm, customers: newCustomers })
+                                }}
+                                placeholder={t('AddRecord.namePlaceholder')}
+                                disabled={isDisabled}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <Label>{t('CustomerSearch.email')} *</Label>
+                              <Input
+                                type="email"
+                                value={customer.email}
+                                onChange={(e) => updateCustomerField(index, 'email', e.target.value)}
+                                disabled={isDisabled}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <Label>{t('Dialogs.phone')}</Label>
+                              <Input
+                                value={customer.phone || ''}
+                                onChange={(e) => updateCustomerField(index, 'phone', e.target.value)}
+                                disabled={isDisabled}
+                              />
+                            </div>
+                          </div>
 
-                        <div>
-                          <Label>{t('AddRecord.improvementsLabel')}</Label>
-                          <Textarea
-                            value={customer.improvements}
-                            onChange={(e) => updateCustomerField(index, 'improvements', e.target.value)}
-                            rows={3}
-                          />
-                        </div>
+                          <div>
+                            <Label>{t('AddRecord.symptomsLabel')}</Label>
+                            <Textarea
+                              value={customer.symptoms}
+                              onChange={(e) => updateCustomerField(index, 'symptoms', e.target.value)}
+                              rows={3}
+                            />
+                          </div>
 
-                        {customerType === 'new' && lessonForm.customers.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => removeCustomerRow(index)}
-                          >
-                            {t('AddRecord.removeCustomer')}
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                          <div>
+                            <Label>{t('AddRecord.improvementsLabel')}</Label>
+                            <Textarea
+                              value={customer.improvements}
+                              onChange={(e) => updateCustomerField(index, 'improvements', e.target.value)}
+                              rows={3}
+                            />
+                          </div>
+
+                          {/* Allow removing non-first rows; for new customers, allow removing any extra row */}
+                          {lessonForm.customers.length > 1 && index > 0 && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeCustomerRow(index)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              {t('AddRecord.removeCustomer')}
+                            </Button>
+                          )}
+                          {customerType === 'new' && lessonForm.customers.length > 1 && index === 0 && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeCustomerRow(index)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              {t('AddRecord.removeCustomer')}
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
 
                 {submitError && (

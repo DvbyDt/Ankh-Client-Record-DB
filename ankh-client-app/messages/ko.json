@@ -69,7 +69,10 @@
     "lessonContent": "수업 내용",
     "instructor": "강사",
     "symptoms": "증상",
-    "improvements": "고객 피드백"
+    "improvements": "고객 피드백",
+    "editRecord": "기록 수정",
+    "deleteRecord": "삭제",
+    "editSaved": "기록이 업데이트되었습니다!"
   },
   "AddRecord": {
     "title": "새 수업 기록 추가",
@@ -96,6 +99,9 @@
     "lessonTypeIndividual": "개인",
     "customerDetails": "고객 세부정보",
     "addCustomer": "고객 추가",
+    "addGroupCustomer": "그룹에 고객 추가",
+    "name": "성명",
+    "namePlaceholder": "성명 입력",
     "firstName": "이름",
     "lastName": "성",
     "symptomsLabel": "증상",
@@ -105,15 +111,19 @@
     "createRecord": "수업 기록 생성",
     "successMessage": "수업 기록이 성공적으로 생성되었습니다!",
     "errorMessage": "수업 기록 생성 실패",
+    "addInstructor": "+ 강사 추가",
+    "lessonContent": "수업 내용",
+    "lessonContentPlaceholder": "이 수업에 대한 메모 (선택 사항)",
     "searchFailed": "고객 검색에 실패했습니다. 다시 시도해 주세요.",
     "searchFailedGeneric": "검색 중 오류가 발생했습니다. 다시 시도해 주세요.",
-    "requiredEditFields": "이름, 성, 이메일은 필수입니다",
+    "requiredEditFields": "성명과 이메일은 필수입니다",
     "updateCustomerFailed": "고객 업데이트에 실패했습니다",
     "updateCustomerGeneric": "고객 업데이트 중 오류가 발생했습니다",
     "placeholderFirstName": "이름",
     "placeholderLastName": "성",
     "placeholderEmail": "이메일",
-    "placeholderPhone": "전화번호"
+    "placeholderPhone": "전화번호",
+    "placeholderName": "성명"
   },
   "UserManagement": {
     "title": "새 사용자 추가",
@@ -241,8 +251,10 @@
     "locationNamePlaceholder": "예: 스튜디오 A, 201호",
     "createLocation": "위치 생성",
     "customerEditTitle": "고객 수정",
+    "name": "이름",
     "firstName": "이름",
     "lastName": "성",
+    "email": "이메일",
     "phone": "전화번호",
     "since": "가입일",
     "username": "사용자 이름",
@@ -263,6 +275,7 @@
     "createUser": "사용자 생성",
     "createNewUser": "새 사용자 생성",
     "createNewUserDesc": "시스템에 새 강사 또는 관리자 추가",
+    "name": "성명",
     "firstName": "이름",
     "lastName": "성",
     "username": "사용자 이름",
@@ -287,6 +300,13 @@
     "leaveBlankToKeepCurrent": "현재 비밀번호를 유지하려면 비워두세요",
     "savedSuccessfully": "저장되었습니다!",
     "searchHintTitle": "위에서 사용자를 검색해 주세요",
-    "searchHintDesc": "이름 또는 이메일로 검색해 보세요"
+    "searchHintDesc": "이름 또는 이메일로 검색해 보세요",
+    "name": "성명",
+    "editLessonTitle": "수업 기록 수정",
+    "deleteLessonRecord": "기록 삭제",
+    "lessonEditSaved": "기록이 업데이트되었습니다!",
+    "lessonEditFailed": "기록 업데이트에 실패했습니다",
+    "deleteLesson": "수업 기록 삭제",
+    "deleteLessonMessage": "이 수업 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
   }
 }
