@@ -882,6 +882,28 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+            {/* Initial symptoms — from the oldest (first) session */}
+            {(() => {
+              const lps = detailModal.lessonParticipants
+              const oldest = lps && lps.length > 0 ? lps[lps.length - 1] : null
+              if (!oldest?.customerSymptoms && !oldest?.customerImprovements) return null
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {oldest.customerSymptoms && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5">
+                      <p className="text-[11px] text-amber-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialSymptoms')}</p>
+                      <p className="text-sm text-gray-800">{oldest.customerSymptoms}</p>
+                    </div>
+                  )}
+                  {oldest.customerImprovements && (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5">
+                      <p className="text-[11px] text-emerald-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialImprovements')}</p>
+                      <p className="text-sm text-gray-800">{oldest.customerImprovements}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t('CustomerSearch.lessonDetails')}</p>
@@ -892,7 +914,7 @@ export default function HomePage() {
               ) : detailModal.lessonParticipants?.length ? (
                 <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
                   {detailModal.lessonParticipants.map(lp => (
-                    <div key={lp.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-colors group">
+                    <div key={lp.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-colors">
                       {/* Issue 3: view vs edit mode per lesson card */}
                       {editingLpId === lp.id ? (
                         <div className="space-y-3">
@@ -938,10 +960,9 @@ export default function HomePage() {
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                               <span className="text-xs text-gray-400 hidden sm:block">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
-                              {/* Issue 3: Edit and Delete buttons (visible on hover) */}
                               <button
                                 onClick={() => startEditLp(lp)}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100"
+                                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                                 title={t('CustomerSearch.editRecord')}
                               >
                                 <Pencil className="w-3 h-3" />
@@ -949,7 +970,7 @@ export default function HomePage() {
                               {currentUser?.role === 'MANAGER' && (
                                 <button
                                   onClick={() => deleteLp(lp)}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                                   title={t('CustomerSearch.deleteRecord')}
                                 >
                                   <Trash2 className="w-3 h-3" />

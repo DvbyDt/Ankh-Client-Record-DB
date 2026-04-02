@@ -70,6 +70,8 @@
     "instructor": "강사",
     "symptoms": "증상",
     "improvements": "고객 피드백",
+    "initialSymptoms": "초기 증상",
+    "initialImprovements": "초기 개선사항",
     "editRecord": "기록 수정",
     "deleteRecord": "삭제",
     "editSaved": "기록이 업데이트되었습니다!"
@@ -94,6 +96,8 @@
     "selectInstructor": "강사 선택",
     "locationLabel": "위치",
     "selectLocation": "위치 선택",
+    "lessonDateLabel": "수업 날짜",
+    "lessonDateHint": "비워두면 오늘 날짜가 사용됩니다",
     "lessonTypeLabel": "수업 유형",
     "lessonTypeGroup": "그룹",
     "lessonTypeIndividual": "개인",
