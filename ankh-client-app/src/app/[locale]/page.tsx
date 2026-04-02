@@ -867,135 +867,147 @@ export default function HomePage() {
 
       {/* Customer detail */}
       <ModalShell open={!!detailModal} onClose={() => { setDetailModal(null); setEditingLpId(null) }} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
-        {detailModal && (
-          <div className="space-y-5">
-            {/* Issue 5: grid-cols-1 sm:grid-cols-3 */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                { label: t('HomePage.email'), value: detailModal.email },
-                { label: t('HomePage.phone'), value: detailModal.phone || '—' },
-                { label: t('HomePage.since'), value: detailModal.createdAt ? new Date(detailModal.createdAt).toLocaleDateString() : '—' }
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-gray-50 rounded-xl p-3.5">
-                  <p className="text-[11px] text-gray-400 mb-1 uppercase tracking-wide font-medium">{label}</p>
-                  <p className="text-sm font-medium text-gray-900 break-all">{value}</p>
-                </div>
-              ))}
-            </div>
-            {/* Initial symptoms — from the oldest (first) session */}
-            {(() => {
-              const lps = detailModal.lessonParticipants
-              const oldest = lps && lps.length > 0 ? lps[lps.length - 1] : null
-              if (!oldest?.customerSymptoms && !oldest?.customerImprovements) return null
-              return (
+        {detailModal && (() => {
+          const lps = detailModal.lessonParticipants || []
+          // Oldest session = last item (list is sorted newest-first)
+          const oldest = lps.length > 0 ? lps[lps.length - 1] : null
+          const initSx = oldest?.customerSymptoms || ''
+          const initIx = oldest?.customerImprovements || ''
+          return (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { label: t('HomePage.email'), value: detailModal.email },
+                  { label: t('HomePage.phone'), value: detailModal.phone || '—' },
+                  { label: t('HomePage.since'), value: detailModal.createdAt ? new Date(detailModal.createdAt).toLocaleDateString() : '—' }
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-gray-50 rounded-xl p-3.5">
+                    <p className="text-[11px] text-gray-400 mb-1 uppercase tracking-wide font-medium">{label}</p>
+                    <p className="text-sm font-medium text-gray-900 break-all">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Initial symptoms — from the oldest (first) session */}
+              {(initSx || initIx) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {oldest.customerSymptoms && (
+                  {initSx && (
                     <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5">
                       <p className="text-[11px] text-amber-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialSymptoms')}</p>
-                      <p className="text-sm text-gray-800">{oldest.customerSymptoms}</p>
+                      <p className="text-sm text-gray-800">{initSx}</p>
                     </div>
                   )}
-                  {oldest.customerImprovements && (
+                  {initIx && (
                     <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5">
                       <p className="text-[11px] text-emerald-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialImprovements')}</p>
-                      <p className="text-sm text-gray-800">{oldest.customerImprovements}</p>
+                      <p className="text-sm text-gray-800">{initIx}</p>
                     </div>
                   )}
                 </div>
-              )
-            })()}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t('CustomerSearch.lessonDetails')}</p>
-                {detailModal.lessonParticipants && <Badge>{detailModal.lessonParticipants.length} sessions</Badge>}
-              </div>
-              {detailLoading ? (
-                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
-              ) : detailModal.lessonParticipants?.length ? (
-                <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
-                  {detailModal.lessonParticipants.map(lp => (
-                    <div key={lp.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-colors">
-                      {/* Issue 3: view vs edit mode per lesson card */}
-                      {editingLpId === lp.id ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
-                            <Badge>{lp.lesson.lessonType}</Badge>
-                            {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.symptoms')}</label>
-                            <textarea
-                              className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-                              rows={2}
-                              value={editLpForm.symptoms}
-                              onChange={e => setEditLpForm(p => ({ ...p, symptoms: e.target.value }))}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.improvements')}</label>
-                            <textarea
-                              className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-                              rows={2}
-                              value={editLpForm.improvements}
-                              onChange={e => setEditLpForm(p => ({ ...p, improvements: e.target.value }))}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Btn variant="secondary" size="sm" onClick={cancelEditLp} disabled={editLpLoading}><X className="w-3 h-3" />{t('Common.cancel')}</Btn>
-                            <Btn size="sm" onClick={() => saveLpEdit(lp)} disabled={editLpLoading}>
-                              {editLpLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                              {t('Common.save')}
-                            </Btn>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
-                              <Badge>{lp.lesson.lessonType}</Badge>
-                              {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
-                              {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                              <span className="text-xs text-gray-400 hidden sm:block">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
-                              <button
-                                onClick={() => startEditLp(lp)}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                title={t('CustomerSearch.editRecord')}
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </button>
-                              {currentUser?.role === 'MANAGER' && (
-                                <button
-                                  onClick={() => deleteLp(lp)}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                  title={t('CustomerSearch.deleteRecord')}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {lp.lesson.lessonContent && <p className="text-xs text-gray-400 italic mb-2">{lp.lesson.lessonContent}</p>}
-                          {lp.customerSymptoms && <p className="text-xs text-gray-600"><span className="font-semibold">{t('CustomerSearch.symptoms')}:</span> {lp.customerSymptoms}</p>}
-                          {lp.customerImprovements && <p className="text-xs text-gray-600 mt-0.5"><span className="font-semibold">{t('CustomerSearch.improvements')}:</span> {lp.customerImprovements}</p>}
-                        </>
-                      )}
-                    </div>
-                  ))}
+              )}
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t('CustomerSearch.lessonDetails')}</p>
+                  {lps.length > 0 && <Badge>{lps.length} sessions</Badge>}
                 </div>
-              ) : <p className="text-sm text-gray-400 py-4 text-center">{t('HomePage.noLessonRecordsFound')}</p>}
-            </div>
-            {currentUser?.role === 'MANAGER' && (
-              <div className="flex gap-2 pt-2 border-t border-gray-100">
-                <Btn variant="secondary" size="sm" onClick={() => { openEdit(detailModal); setDetailModal(null) }}><Edit3 className="w-3 h-3" />{t('Common.edit')}</Btn>
-                <Btn variant="danger" size="sm" onClick={() => { deleteCustomer(detailModal.id, formatName(detailModal.firstName, detailModal.lastName)); setDetailModal(null) }}><Trash2 className="w-3 h-3" />{t('Common.delete')}</Btn>
+                {detailLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
+                ) : lps.length ? (
+                  <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+                    {lps.map(lp => {
+                      // Only show session symptoms if they differ from the initial symptoms
+                      // (avoids repeating the same text already shown in the profile section above)
+                      const sessionSx = lp.customerSymptoms && lp.customerSymptoms !== initSx ? lp.customerSymptoms : null
+                      const sessionIx = lp.customerImprovements && lp.customerImprovements !== initIx ? lp.customerImprovements : null
+                      return (
+                        <div
+                          key={lp.id}
+                          className={`border border-gray-100 rounded-xl p-4 bg-white transition-colors ${editingLpId === lp.id ? '' : 'hover:border-blue-200 hover:bg-blue-50/20 cursor-pointer'}`}
+                          onClick={() => { if (editingLpId !== lp.id) startEditLp(lp) }}
+                        >
+                          {editingLpId === lp.id ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                                <Badge>{lp.lesson.lessonType}</Badge>
+                                {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.symptoms')}</label>
+                                <textarea
+                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                                  rows={2}
+                                  value={editLpForm.symptoms}
+                                  onChange={e => setEditLpForm(p => ({ ...p, symptoms: e.target.value }))}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.improvements')}</label>
+                                <textarea
+                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                                  rows={2}
+                                  value={editLpForm.improvements}
+                                  onChange={e => setEditLpForm(p => ({ ...p, improvements: e.target.value }))}
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Btn variant="secondary" size="sm" onClick={cancelEditLp} disabled={editLpLoading}><X className="w-3 h-3" />{t('Common.cancel')}</Btn>
+                                <Btn size="sm" onClick={() => saveLpEdit(lp)} disabled={editLpLoading}>
+                                  {editLpLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                                  {t('Common.save')}
+                                </Btn>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                                  <Badge>{lp.lesson.lessonType}</Badge>
+                                  {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
+                                  {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                  <span className="text-xs text-gray-400 hidden sm:block">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); startEditLp(lp) }}
+                                    className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    title={t('CustomerSearch.editRecord')}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  {currentUser?.role === 'MANAGER' && (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); deleteLp(lp) }}
+                                      className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                      title={t('CustomerSearch.deleteRecord')}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {lp.lesson.lessonContent && <p className="text-xs text-gray-400 italic mb-2">{lp.lesson.lessonContent}</p>}
+                              {sessionSx && <p className="text-xs text-gray-600"><span className="font-semibold">{t('CustomerSearch.symptoms')}:</span> {sessionSx}</p>}
+                              {sessionIx && <p className="text-xs text-gray-600 mt-0.5"><span className="font-semibold">{t('CustomerSearch.improvements')}:</span> {sessionIx}</p>}
+                            </>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : <p className="text-sm text-gray-400 py-4 text-center">{t('HomePage.noLessonRecordsFound')}</p>}
               </div>
-            )}
-          </div>
-        )}
+              {currentUser?.role === 'MANAGER' && (
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <Btn variant="secondary" size="sm" onClick={() => { openEdit(detailModal); setDetailModal(null) }}><Edit3 className="w-3 h-3" />{t('Common.edit')}</Btn>
+                  <Btn variant="danger" size="sm" onClick={() => { deleteCustomer(detailModal.id, formatName(detailModal.firstName, detailModal.lastName)); setDetailModal(null) }}><Trash2 className="w-3 h-3" />{t('Common.delete')}</Btn>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </ModalShell>
 
       {/* Edit customer — Issue 1 & 5: single name field, grid-cols-1 sm:grid-cols-2 */}
