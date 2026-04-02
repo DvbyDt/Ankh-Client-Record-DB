@@ -65,6 +65,7 @@ interface LessonFormData {
   instructorIds: string[]   // Array of instructor IDs (first is primary)
   locationId: string
   lessonType: 'Group' | 'Individual'
+  lessonDate: string        // ISO date string, e.g. "2025-03-15"
   customers: CustomerFormData[]
 }
 
@@ -105,6 +106,7 @@ export default function AddRecordPage() {
     instructorIds: [''],
     locationId: '',
     lessonType: 'Group',
+    lessonDate: '',
     customers: [{ name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
   })
 
@@ -328,6 +330,7 @@ export default function AddRecordPage() {
 
       const payload = {
         lessonType: lessonForm.lessonType,
+        lessonDate: lessonForm.lessonDate || undefined,
         instructorId: primaryInstructorId,
         instructorIds: allInstructorIds,
         location: lessonForm.locationId,
@@ -674,6 +677,19 @@ export default function AddRecordPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="lessonDate">{t('AddRecord.lessonDateLabel')}</Label>
+                    <input
+                      id="lessonDate"
+                      type="date"
+                      value={lessonForm.lessonDate}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setLessonForm({ ...lessonForm, lessonDate: e.target.value })}
+                      className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">{t('AddRecord.lessonDateHint')}</p>
                   </div>
 
                   <div>

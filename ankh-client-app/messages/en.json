@@ -164,6 +164,8 @@
     "instructor": "Instructor",
     "symptoms": "Symptoms",
     "improvements": "Customer Improvements",
+    "initialSymptoms": "Initial Symptoms",
+    "initialImprovements": "Initial Improvements",
     "editRecord": "Edit Record",
     "deleteRecord": "Remove",
     "editSaved": "Record updated!"
@@ -188,6 +190,8 @@
     "selectInstructor": "Select instructor",
     "locationLabel": "Location",
     "selectLocation": "Select location",
+    "lessonDateLabel": "Lesson Date",
+    "lessonDateHint": "Leave blank to use today's date",
     "lessonTypeLabel": "Lesson Type",
     "lessonTypeGroup": "Group",
     "lessonTypeIndividual": "Individual",
