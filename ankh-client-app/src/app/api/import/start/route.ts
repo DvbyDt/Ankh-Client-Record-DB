@@ -14,8 +14,8 @@ const HEADER_MAP: Record<string, string> = {
   'location name': 'locationName', 'locationname': 'locationName', 'location': 'locationName',
   'lesson type': 'lessonType', 'lessontype': 'lessonType',
   'lesson content': 'lessonContent', 'lessoncontent': 'lessonContent', 'content': 'lessonContent',
-  'customer symptoms': 'customerSymptoms', 'customersymptoms': 'customerSymptoms',
-  'initial symptom': 'customerSymptoms', 'initialsymptom': 'customerSymptoms', 'symptoms': 'customerSymptoms',
+  'customer symptoms': 'customerSymptoms', 'customersymptoms': 'customerSymptoms', 'symptoms': 'customerSymptoms',
+  'initial symptom': 'initialSymptom', 'initialsymptom': 'initialSymptom',
   'customer improvements': 'courseCompletionStatus', 'customerimprovements': 'courseCompletionStatus',
   'course completion status': 'courseCompletionStatus', 'coursecompletionstatus': 'courseCompletionStatus',
   'customer feedback': 'courseCompletionStatus', 'customerfeedback': 'courseCompletionStatus',
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       customerId: string; customerName: string; lessonId: string
       lessonDate: Date | undefined; instructorName: string; lessonType: string
       locationName: string; lessonContent: string | null
-      customerSymptoms: string | null; courseCompletionStatus: string | null
+      customerSymptoms: string | null; initialSymptom: string | null; courseCompletionStatus: string | null
     }
 
     const rows: NRow[] = []
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
         locationName: String(norm.locationName || 'Default Location').trim(),
         lessonContent: norm.lessonContent ? String(norm.lessonContent).trim() : null,
         customerSymptoms: norm.customerSymptoms ? String(norm.customerSymptoms).trim() : null,
+        initialSymptom: norm.initialSymptom ? String(norm.initialSymptom).trim() : null,
         courseCompletionStatus: norm.courseCompletionStatus ? String(norm.courseCompletionStatus).trim() : null,
       })
     }
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
       participantRows.push({
         customerId: row.customerId,
         lessonId: row.lessonId,
-        customerSymptoms: row.customerSymptoms,
+        customerSymptoms: row.customerSymptoms || row.initialSymptom,
         customerImprovements: row.courseCompletionStatus,
       })
     }
