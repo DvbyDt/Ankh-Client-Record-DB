@@ -322,6 +322,7 @@ export default function HomePage() {
   const [uploadModal, setUploadModal] = useState(false)
 
   // ── Issue 3: Edit/Delete individual lesson records ──
+  const [expandedLpId, setExpandedLpId] = useState<string | null>(null)
   const [editingLpId, setEditingLpId] = useState<string | null>(null)
   const [editLpForm, setEditLpForm] = useState<{ symptoms: string; improvements: string }>({ symptoms: '', improvements: '' })
   const [editLpLoading, setEditLpLoading] = useState(false)
@@ -477,6 +478,7 @@ export default function HomePage() {
           }
         })
         setEditingLpId(null)
+        setExpandedLpId(lp.id)
         flash(t('CustomerSearch.editSaved'))
       } else {
         flash(t('ManageUsers.lessonEditFailed'))
@@ -866,7 +868,7 @@ export default function HomePage() {
       </ModalShell>
 
       {/* Customer detail */}
-      <ModalShell open={!!detailModal} onClose={() => { setDetailModal(null); setEditingLpId(null) }} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
+      <ModalShell open={!!detailModal} onClose={() => { setDetailModal(null); setEditingLpId(null); setExpandedLpId(null) }} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
         {detailModal && (() => {
           const lps = detailModal.lessonParticipants || []
           // Oldest session = last item (list is sorted newest-first)
@@ -916,62 +918,28 @@ export default function HomePage() {
                 ) : lps.length ? (
                   <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
                     {lps.map(lp => {
-                      // Only show session symptoms if they differ from the initial symptoms
-                      // (avoids repeating the same text already shown in the profile section above)
-                      const sessionSx = lp.customerSymptoms && lp.customerSymptoms !== initSx ? lp.customerSymptoms : null
-                      const sessionIx = lp.customerImprovements && lp.customerImprovements !== initIx ? lp.customerImprovements : null
+                      const isExpanded = expandedLpId === lp.id
+                      const isEditing = editingLpId === lp.id
                       return (
                         <div
                           key={lp.id}
-                          className={`border border-gray-100 rounded-xl p-4 bg-white transition-colors ${editingLpId === lp.id ? '' : 'hover:border-blue-200 hover:bg-blue-50/20 cursor-pointer'}`}
-                          onClick={() => { if (editingLpId !== lp.id) startEditLp(lp) }}
+                          className={`border rounded-xl bg-white transition-colors ${isEditing ? 'border-blue-200' : isExpanded ? 'border-gray-200' : 'border-gray-100 hover:border-gray-200 cursor-pointer'}`}
+                          onClick={() => { if (!isEditing) setExpandedLpId(isExpanded ? null : lp.id) }}
                         >
-                          {editingLpId === lp.id ? (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
-                                <Badge>{lp.lesson.lessonType}</Badge>
-                                {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
-                              </div>
-                              <div>
-                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.symptoms')}</label>
-                                <textarea
-                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-                                  rows={2}
-                                  value={editLpForm.symptoms}
-                                  onChange={e => setEditLpForm(p => ({ ...p, symptoms: e.target.value }))}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.improvements')}</label>
-                                <textarea
-                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-                                  rows={2}
-                                  value={editLpForm.improvements}
-                                  onChange={e => setEditLpForm(p => ({ ...p, improvements: e.target.value }))}
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Btn variant="secondary" size="sm" onClick={cancelEditLp} disabled={editLpLoading}><X className="w-3 h-3" />{t('Common.cancel')}</Btn>
-                                <Btn size="sm" onClick={() => saveLpEdit(lp)} disabled={editLpLoading}>
-                                  {editLpLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                                  {t('Common.save')}
-                                </Btn>
-                              </div>
+                          {/* ── Collapsed / always-visible header ── */}
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                              <Badge>{lp.lesson.lessonType}</Badge>
+                              {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
+                              {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
                             </div>
-                          ) : (
-                            <>
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
-                                  <Badge>{lp.lesson.lessonType}</Badge>
-                                  {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
-                                  {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
-                                </div>
-                                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                                  <span className="text-xs text-gray-400 hidden sm:block">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
+                            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                              <span className="text-xs text-gray-400 hidden sm:block">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
+                              {!isEditing && (
+                                <>
                                   <button
-                                    onClick={e => { e.stopPropagation(); startEditLp(lp) }}
+                                    onClick={e => { e.stopPropagation(); setExpandedLpId(lp.id); startEditLp(lp) }}
                                     className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                                     title={t('CustomerSearch.editRecord')}
                                   >
@@ -986,12 +954,68 @@ export default function HomePage() {
                                       <Trash2 className="w-3 h-3" />
                                     </button>
                                   )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ── Expanded: view or edit ── */}
+                          {(isExpanded || isEditing) && (
+                            <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+                              {isEditing ? (
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.symptoms')}</label>
+                                    <textarea
+                                      className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                                      rows={2}
+                                      value={editLpForm.symptoms}
+                                      onChange={e => setEditLpForm(p => ({ ...p, symptoms: e.target.value }))}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.improvements')}</label>
+                                    <textarea
+                                      className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                                      rows={2}
+                                      value={editLpForm.improvements}
+                                      onChange={e => setEditLpForm(p => ({ ...p, improvements: e.target.value }))}
+                                    />
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Btn variant="secondary" size="sm" onClick={() => { cancelEditLp(); setExpandedLpId(lp.id) }} disabled={editLpLoading}><X className="w-3 h-3" />{t('Common.cancel')}</Btn>
+                                    <Btn size="sm" onClick={() => saveLpEdit(lp)} disabled={editLpLoading}>
+                                      {editLpLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                                      {t('Common.save')}
+                                    </Btn>
+                                  </div>
                                 </div>
-                              </div>
-                              {lp.lesson.lessonContent && <p className="text-xs text-gray-400 italic mb-2">{lp.lesson.lessonContent}</p>}
-                              {sessionSx && <p className="text-xs text-gray-600"><span className="font-semibold">{t('CustomerSearch.symptoms')}:</span> {sessionSx}</p>}
-                              {sessionIx && <p className="text-xs text-gray-600 mt-0.5"><span className="font-semibold">{t('CustomerSearch.improvements')}:</span> {sessionIx}</p>}
-                            </>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {lp.lesson.lessonContent && (
+                                    <div>
+                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Lesson Content</span>
+                                      <p className="text-xs text-gray-700 mt-0.5">{lp.lesson.lessonContent}</p>
+                                    </div>
+                                  )}
+                                  {lp.customerSymptoms && (
+                                    <div>
+                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.symptoms')}</span>
+                                      <p className="text-xs text-gray-700 mt-0.5">{lp.customerSymptoms}</p>
+                                    </div>
+                                  )}
+                                  {lp.customerImprovements && (
+                                    <div>
+                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.improvements')}</span>
+                                      <p className="text-xs text-gray-700 mt-0.5">{lp.customerImprovements}</p>
+                                    </div>
+                                  )}
+                                  {!lp.lesson.lessonContent && !lp.customerSymptoms && !lp.customerImprovements && (
+                                    <p className="text-xs text-gray-400">No additional details recorded.</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       )
