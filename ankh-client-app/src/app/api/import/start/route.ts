@@ -16,9 +16,9 @@ const HEADER_MAP: Record<string, string> = {
   'lesson content': 'lessonContent', 'lessoncontent': 'lessonContent', 'content': 'lessonContent',
   'customer symptoms': 'customerSymptoms', 'customersymptoms': 'customerSymptoms', 'symptoms': 'customerSymptoms',
   'initial symptom': 'initialSymptom', 'initialsymptom': 'initialSymptom',
-  'customer improvements': 'courseCompletionStatus', 'customerimprovements': 'courseCompletionStatus',
-  'course completion status': 'courseCompletionStatus', 'coursecompletionstatus': 'courseCompletionStatus',
-  'customer feedback': 'courseCompletionStatus', 'customerfeedback': 'courseCompletionStatus',
+  'customer improvements': 'customerImprovements', 'customerimprovements': 'customerImprovements',
+  'course completion status': 'customerFeedback', 'coursecompletionstatus': 'customerFeedback',
+  'customer feedback': 'customerFeedback', 'customerfeedback': 'customerFeedback',
 }
 
 function safeDate(val: unknown): Date | undefined {
@@ -59,7 +59,8 @@ export async function POST(request: NextRequest) {
       customerId: string; customerName: string; lessonId: string
       lessonDate: Date | undefined; instructorName: string; lessonType: string
       locationName: string; lessonContent: string | null
-      customerSymptoms: string | null; initialSymptom: string | null; courseCompletionStatus: string | null
+      customerSymptoms: string | null; initialSymptom: string | null
+      customerImprovements: string | null; customerFeedback: string | null
     }
 
     const rows: NRow[] = []
@@ -82,7 +83,8 @@ export async function POST(request: NextRequest) {
         lessonContent: norm.lessonContent ? String(norm.lessonContent).trim() : null,
         customerSymptoms: norm.customerSymptoms ? String(norm.customerSymptoms).trim() : null,
         initialSymptom: norm.initialSymptom ? String(norm.initialSymptom).trim() : null,
-        courseCompletionStatus: norm.courseCompletionStatus ? String(norm.courseCompletionStatus).trim() : null,
+        customerImprovements: norm.customerImprovements ? String(norm.customerImprovements).trim() : null,
+        customerFeedback: norm.customerFeedback ? String(norm.customerFeedback).trim() : null,
       })
     }
 
@@ -155,7 +157,7 @@ export async function POST(request: NextRequest) {
 
     // Build minimal lesson rows (only what DB needs, no text content)
     type LessonRow = { id: string; lessonType: string; lessonContent: string | null; instructorId: string; locationId: string; createdAt?: Date }
-    type ParticipantRow = { customerId: string; lessonId: string; customerSymptoms: string | null; customerImprovements: string | null }
+    type ParticipantRow = { customerId: string; lessonId: string; customerSymptoms: string | null; customerImprovements: string | null; status: string }
 
     const lessonRows: LessonRow[] = []
     const seenLessons = new Set<string>()
@@ -184,7 +186,8 @@ export async function POST(request: NextRequest) {
         customerId: row.customerId,
         lessonId: row.lessonId,
         customerSymptoms: row.customerSymptoms || row.initialSymptom,
-        customerImprovements: row.courseCompletionStatus,
+        customerImprovements: row.customerImprovements,
+        status: row.customerFeedback || 'attended',
       })
     }
 
