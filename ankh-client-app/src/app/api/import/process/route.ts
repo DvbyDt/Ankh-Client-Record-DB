@@ -14,7 +14,7 @@ type LessonRow = {
 }
 type ParticipantRow = {
   customerId: string; lessonId: string
-  customerSymptoms: string | null; customerImprovements: string | null
+  customerSymptoms: string | null; customerImprovements: string | null; status: string
 }
 interface StoredData { lessons: LessonRow[]; participants: ParticipantRow[] }
 
@@ -99,7 +99,7 @@ async function handler(request: NextRequest) {
           lessonId: p.lessonId,
           customerSymptoms: p.customerSymptoms,
           customerImprovements: p.customerImprovements,
-          status: 'attended',
+          status: p.status || 'attended',
         })),
         skipDuplicates: true,
       })

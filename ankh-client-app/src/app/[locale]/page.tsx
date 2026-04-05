@@ -874,7 +874,6 @@ export default function HomePage() {
           // Oldest session = last item (list is sorted newest-first)
           const oldest = lps.length > 0 ? lps[lps.length - 1] : null
           const initSx = oldest?.customerSymptoms || ''
-          const initIx = oldest?.customerImprovements || ''
           return (
             <div className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -891,20 +890,10 @@ export default function HomePage() {
               </div>
 
               {/* Initial symptoms — from the oldest (first) session */}
-              {(initSx || initIx) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {initSx && (
-                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5">
-                      <p className="text-[11px] text-amber-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialSymptoms')}</p>
-                      <p className="text-sm text-gray-800">{initSx}</p>
-                    </div>
-                  )}
-                  {initIx && (
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5">
-                      <p className="text-[11px] text-emerald-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialImprovements')}</p>
-                      <p className="text-sm text-gray-800">{initIx}</p>
-                    </div>
-                  )}
+              {initSx && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5">
+                  <p className="text-[11px] text-amber-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialSymptoms')}</p>
+                  <p className="text-sm text-gray-800">{initSx}</p>
                 </div>
               )}
 
@@ -928,11 +917,16 @@ export default function HomePage() {
                         >
                           {/* ── Collapsed / always-visible header ── */}
                           <div className="flex items-center justify-between px-4 py-3">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
-                              <Badge>{lp.lesson.lessonType}</Badge>
-                              {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
-                              {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
+                                <Badge>{lp.lesson.lessonType}</Badge>
+                                {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
+                                {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                              </div>
+                              {!isExpanded && !isEditing && lp.customerSymptoms && (
+                                <p className="text-xs text-gray-400 truncate max-w-xs">{lp.customerSymptoms}</p>
+                              )}
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                               <span className="text-xs text-gray-400 hidden sm:block">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
