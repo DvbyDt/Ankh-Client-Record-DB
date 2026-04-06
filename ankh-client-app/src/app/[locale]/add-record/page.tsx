@@ -611,7 +611,7 @@ export default function AddRecordPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Lesson Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                   {/* Multiple instructors — displayed horizontally */}
                   <div className="md:col-span-2">
@@ -623,7 +623,7 @@ export default function AddRecordPage() {
                             value={instrId}
                             onValueChange={(value) => updateInstructorId(idx, value)}
                           >
-                            <SelectTrigger className="w-44">
+                            <SelectTrigger className="w-48">
                               <SelectValue placeholder={t('AddRecord.selectInstructor')} />
                             </SelectTrigger>
                             <SelectContent>
@@ -645,21 +645,19 @@ export default function AddRecordPage() {
                           )}
                         </div>
                       ))}
-                      {lessonForm.instructorIds.length > 0 && lessonForm.instructorIds[lessonForm.instructorIds.length - 1] !== '' && (
-                        <button
-                          type="button"
-                          onClick={addInstructor}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          {t('AddRecord.addInstructor')}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={addInstructor}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {t('AddRecord.addInstructor')}
+                      </button>
                     </div>
                   </div>
 
                   <div>
-                    <Label htmlFor="location">{t('AddRecord.locationLabel')} *</Label>
+                    <Label htmlFor="location" className="mb-2 block">{t('AddRecord.locationLabel')} *</Label>
                     <Select
                       value={lessonForm.locationId}
                       onValueChange={(value) => setLessonForm({ ...lessonForm, locationId: value })}
@@ -678,7 +676,7 @@ export default function AddRecordPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="lessonDate">{t('AddRecord.lessonDateLabel')}</Label>
+                    <Label htmlFor="lessonDate" className="mb-2 block">{t('AddRecord.lessonDateLabel')}</Label>
                     <input
                       id="lessonDate"
                       type="date"
@@ -691,7 +689,7 @@ export default function AddRecordPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="lessonType">{t('AddRecord.lessonTypeLabel')} *</Label>
+                    <Label htmlFor="lessonType" className="mb-2 block">{t('AddRecord.lessonTypeLabel')} *</Label>
                     <Select
                       value={lessonForm.lessonType}
                       onValueChange={(value: 'Group' | 'Individual') => setLessonForm({ ...lessonForm, lessonType: value })}
@@ -725,11 +723,10 @@ export default function AddRecordPage() {
 
                     return (
                       <Card key={index} className="rounded-2xl border-gray-100">
-                        <CardContent className="pt-6 space-y-4">
-                          {/* Issue 1: Single "Full Name" field */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CardContent className="pt-6 space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="md:col-span-2">
-                              <Label>{t('AddRecord.name')} *</Label>
+                              <Label className="mb-2 block">{t('AddRecord.name')} *</Label>
                               <Input
                                 value={customer.name}
                                 onChange={(e) => {
@@ -744,7 +741,7 @@ export default function AddRecordPage() {
                               />
                             </div>
                             <div>
-                              <Label>{t('CustomerSearch.email')} *</Label>
+                              <Label className="mb-2 block">{t('CustomerSearch.email')} *</Label>
                               <Input
                                 type="email"
                                 value={customer.email}
@@ -754,7 +751,7 @@ export default function AddRecordPage() {
                               />
                             </div>
                             <div>
-                              <Label>{t('Dialogs.phone')}</Label>
+                              <Label className="mb-2 block">{t('Dialogs.phone')}</Label>
                               <Input
                                 value={customer.phone || ''}
                                 onChange={(e) => updateCustomerField(index, 'phone', e.target.value)}
