@@ -1004,6 +1004,12 @@ export default function HomePage() {
                                       <p className="text-xs text-gray-700 mt-0.5">{lp.customerImprovements}</p>
                                     </div>
                                   )}
+                                  {lp.status && lp.status !== 'attended' && (
+                                    <div>
+                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('CustomerSearch.feedback')}</span>
+                                      <p className="text-xs text-gray-700 mt-0.5">{lp.status}</p>
+                                    </div>
+                                  )}
                                   {!lp.lesson.lessonContent && !lp.customerSymptoms && !lp.customerImprovements && (
                                     <p className="text-xs text-gray-400">No additional details recorded.</p>
                                   )}

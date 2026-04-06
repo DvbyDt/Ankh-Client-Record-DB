@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     lessonId: newLesson.id,
                     customerId: customer.id,
-                    status: "attended", // Default status, can be customized,
+                    status: customerData?.feedback || "attended",
                     customerSymptoms: customerData?.symptoms,
                     customerImprovements: customerData?.improvements
                 }
