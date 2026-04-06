@@ -59,6 +59,7 @@ interface CustomerFormData {
   phone?: string
   symptoms: string
   improvements: string
+  feedback: string
 }
 
 interface LessonFormData {
@@ -107,7 +108,7 @@ export default function AddRecordPage() {
     locationId: '',
     lessonType: 'Group',
     lessonDate: '',
-    customers: [{ name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
+    customers: [{ name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -199,7 +200,8 @@ export default function AddRecordPage() {
         email: customer.email,
         phone: customer.phone || '',
         symptoms: '',
-        improvements: ''
+        improvements: '',
+        feedback: ''
       }]
     })
     setStep('form')
@@ -278,7 +280,7 @@ export default function AddRecordPage() {
     // For existing customer flow, additional rows are new customers (editable)
     setLessonForm({
       ...lessonForm,
-      customers: [...lessonForm.customers, { name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '' }]
+      customers: [...lessonForm.customers, { name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
     })
   }
 
@@ -611,17 +613,17 @@ export default function AddRecordPage() {
                 {/* Lesson Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                  {/* Issue 4: Multiple instructor selects */}
-                  <div className="md:col-span-2 space-y-2">
-                    <Label>{t('AddRecord.instructorLabel')} *</Label>
-                    {lessonForm.instructorIds.map((instrId, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <div className="flex-1">
+                  {/* Multiple instructors — displayed horizontally */}
+                  <div className="md:col-span-2">
+                    <Label className="mb-2 block">{t('AddRecord.instructorLabel')} *</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {lessonForm.instructorIds.map((instrId, idx) => (
+                        <div key={idx} className="flex items-center gap-1">
                           <Select
                             value={instrId}
                             onValueChange={(value) => updateInstructorId(idx, value)}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-44">
                               <SelectValue placeholder={t('AddRecord.selectInstructor')} />
                             </SelectTrigger>
                             <SelectContent>
@@ -632,32 +634,28 @@ export default function AddRecordPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => removeInstructor(idx)}
+                              className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
-                        {idx > 0 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeInstructor(idx)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                    {lessonForm.instructorIds.length > 0 && lessonForm.instructorIds[lessonForm.instructorIds.length - 1] !== '' && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addInstructor}
-                        className="mt-1"
-                      >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        {t('AddRecord.addInstructor')}
-                      </Button>
-                    )}
+                      ))}
+                      {lessonForm.instructorIds.length > 0 && lessonForm.instructorIds[lessonForm.instructorIds.length - 1] !== '' && (
+                        <button
+                          type="button"
+                          onClick={addInstructor}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {t('AddRecord.addInstructor')}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -766,7 +764,7 @@ export default function AddRecordPage() {
                           </div>
 
                           <div>
-                            <Label>{t('AddRecord.symptomsLabel')}</Label>
+                            <Label className="mb-2 block">{t('AddRecord.symptomsLabel')}</Label>
                             <Textarea
                               value={customer.symptoms}
                               onChange={(e) => updateCustomerField(index, 'symptoms', e.target.value)}
@@ -775,11 +773,20 @@ export default function AddRecordPage() {
                           </div>
 
                           <div>
-                            <Label>{t('AddRecord.improvementsLabel')}</Label>
+                            <Label className="mb-2 block">{t('AddRecord.improvementsLabel')}</Label>
                             <Textarea
                               value={customer.improvements}
                               onChange={(e) => updateCustomerField(index, 'improvements', e.target.value)}
                               rows={3}
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="mb-2 block">{t('AddRecord.feedbackLabel')}</Label>
+                            <Textarea
+                              value={customer.feedback}
+                              onChange={(e) => updateCustomerField(index, 'feedback', e.target.value)}
+                              rows={2}
                             />
                           </div>
 
