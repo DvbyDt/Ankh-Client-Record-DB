@@ -623,7 +623,7 @@ export default function AddRecordPage() {
                             value={instrId}
                             onValueChange={(value) => updateInstructorId(idx, value)}
                           >
-                            <SelectTrigger className="w-48">
+                            <SelectTrigger className="w-full sm:w-48">
                               <SelectValue placeholder={t('AddRecord.selectInstructor')} />
                             </SelectTrigger>
                             <SelectContent>
@@ -828,7 +828,7 @@ export default function AddRecordPage() {
                   </div>
                 )}
 
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     type="button"
                     variant="outline"
