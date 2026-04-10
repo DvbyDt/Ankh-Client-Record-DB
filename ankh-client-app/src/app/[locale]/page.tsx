@@ -879,7 +879,7 @@ export default function HomePage() {
                 {[
                   { label: t('HomePage.email'), value: detailModal.email },
                   { label: t('HomePage.phone'), value: detailModal.phone || '—' },
-                  { label: t('HomePage.since'), value: detailModal.createdAt ? new Date(detailModal.createdAt).toLocaleDateString() : '—' }
+                  { label: t('HomePage.since'), value: oldest?.lesson?.createdAt ? new Date(oldest.lesson.createdAt).toLocaleDateString() : '—' }
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center gap-4 px-4 py-3">
                     <p className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold w-12 flex-shrink-0">{label}</p>
