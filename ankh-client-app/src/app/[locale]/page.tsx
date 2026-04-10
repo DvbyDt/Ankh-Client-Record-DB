@@ -867,8 +867,45 @@ export default function HomePage() {
       </ModalShell>
 
       {/* Customer detail */}
-      <ModalShell open={!!detailModal} onClose={() => { setDetailModal(null); setEditingLpId(null); setExpandedLpId(null) }} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
-        {detailModal && (() => {
+      <ModalShell open={!!detailModal || detailLoading} onClose={() => { setDetailModal(null); setEditingLpId(null); setExpandedLpId(null) }} wide title={detailModal ? formatName(detailModal.firstName, detailModal.lastName) : ''} subtitle={t('HomePage.customerProfile')}>
+        {detailLoading && !detailModal ? (
+          <div className="space-y-5 animate-pulse">
+            {/* Profile shimmer */}
+            <div className="rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <div className="h-2.5 w-10 bg-gray-100 rounded-full flex-shrink-0" />
+                  <div className="h-3.5 bg-gray-100 rounded-full" style={{ width: i === 1 ? '55%' : i === 2 ? '30%' : '25%' }} />
+                </div>
+              ))}
+            </div>
+            {/* Initial symptoms shimmer */}
+            <div className="rounded-xl bg-amber-50 border border-amber-100 p-4 space-y-2">
+              <div className="h-2.5 w-28 bg-amber-100 rounded-full" />
+              <div className="h-3 w-full bg-amber-100 rounded-full" />
+              <div className="h-3 w-3/4 bg-amber-100 rounded-full" />
+            </div>
+            {/* Lesson cards shimmer */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <div className="h-2.5 w-24 bg-gray-100 rounded-full" />
+                <div className="h-5 w-16 bg-gray-100 rounded-full" />
+              </div>
+              {[1, 2, 3].map(i => (
+                <div key={i} className="border border-gray-100 rounded-xl p-4 space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3.5 w-20 bg-gray-100 rounded-full" />
+                    <div className="h-5 w-16 bg-gray-100 rounded-lg" />
+                    <div className="h-5 w-12 bg-gray-100 rounded-lg" />
+                    <div className="h-3 w-14 bg-gray-100 rounded-full ml-auto" />
+                  </div>
+                  <div className="h-3 w-4/5 bg-gray-50 rounded-full" />
+                  <div className="h-3 w-3/5 bg-gray-50 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : detailModal && (() => {
           const lps = detailModal.lessonParticipants || []
           // Oldest session = last item (list is sorted newest-first)
           const oldest = lps.length > 0 ? lps[lps.length - 1] : null
@@ -902,7 +939,20 @@ export default function HomePage() {
                   {lps.length > 0 && <Badge>{lps.length} sessions</Badge>}
                 </div>
                 {detailLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
+                  <div className="space-y-2.5 animate-pulse">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="border border-gray-100 rounded-xl p-4 space-y-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-3.5 w-20 bg-gray-100 rounded-full" />
+                          <div className="h-5 w-16 bg-gray-100 rounded-lg" />
+                          <div className="h-5 w-12 bg-gray-100 rounded-lg" />
+                          <div className="h-3 w-14 bg-gray-100 rounded-full ml-auto" />
+                        </div>
+                        <div className="h-3 w-4/5 bg-gray-50 rounded-full" />
+                        <div className="h-3 w-3/5 bg-gray-50 rounded-full" />
+                      </div>
+                    ))}
+                  </div>
                 ) : lps.length ? (
                   <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
                     {lps.map(lp => {
