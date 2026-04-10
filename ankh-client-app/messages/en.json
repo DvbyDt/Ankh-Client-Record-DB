@@ -62,6 +62,7 @@
     "exportCSV": "Export CSV",
     "importCSV": "Import CSV",
     "manageUsers": "Manage Users",
+    "settings": "Settings",
     "searchRecords": "Search Records",
     "searchRecordsDesc": "Search for customers, instructors, or lesson locations",
     "searchResults": "Search Results",

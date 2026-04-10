@@ -655,6 +655,9 @@ export default function HomePage() {
                     <Btn variant="secondary" onClick={() => router.push(`/${locale}/manage-users`)}>
                       <Settings className="w-3.5 h-3.5" />{t('HomePage.manageUsers')}
                     </Btn>
+                    <Btn variant="secondary" onClick={() => router.push(`/${locale}/settings`)}>
+                      <Settings className="w-3.5 h-3.5" />{t('HomePage.settings')}
+                    </Btn>
                   </div>
                 )}
               </div>
