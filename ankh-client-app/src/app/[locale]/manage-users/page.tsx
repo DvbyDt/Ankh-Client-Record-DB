@@ -199,7 +199,7 @@ export default function ManageUsersPage() {
             <div className="px-6 py-5 border-b border-slate-50">
               <h2 className="text-[15px] font-semibold text-slate-900 mb-0.5">Search Users</h2>
               <p className="text-xs text-slate-400">Find users by name or email to view and edit their information</p>
-              <div className="mt-4 flex gap-3">
+              <div className="mt-4 flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <input
@@ -264,7 +264,7 @@ export default function ManageUsersPage() {
                         </span>
                         <button
                           onClick={() => openEdit(user)}
-                          className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all"
+                          className="sm:opacity-0 sm:group-hover:opacity-100 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all"
                         >
                           <Edit3 className="w-3.5 h-3.5" />{t('ManageUsers.edit')}
                         </button>

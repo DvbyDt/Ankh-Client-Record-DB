@@ -81,16 +81,16 @@ function ModalShell({ open, onClose, title, subtitle, wide, children }: {
   return (
     <>
       <Overlay onClick={onClose} />
-      <div className={`fixed inset-0 z-50 flex items-center justify-center p-4`}>
-        <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] flex flex-col overflow-hidden`} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className={`relative bg-white w-full ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'} max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl shadow-2xl`} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
             <div>
               <h2 className="text-base font-semibold text-gray-900">{title}</h2>
               {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
             </div>
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"><X className="w-4 h-4" /></button>
           </div>
-          <div className="overflow-y-auto flex-1 px-6 py-5">{children}</div>
+          <div className="overflow-y-auto flex-1 px-5 py-4">{children}</div>
         </div>
       </div>
     </>
@@ -220,33 +220,32 @@ function RecentLessons({ locale, formatName, onViewCustomer }: {
             const lesson = lp.lesson
             if (!customer || !lesson) return null
             return (
-              <div key={lp.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group">
+              <button
+                key={lp.id}
+                onClick={() => onViewCustomer(customer.id)}
+                className="w-full flex items-start gap-3 px-5 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+              >
                 <Avatar name={`${customer.firstName} ${customer.lastName}`} color="violet" />
                 <div className="flex-1 min-w-0">
-                  <button
-                    onClick={() => onViewCustomer(customer.id)}
-                    className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left"
-                  >
-                    {formatName(customer.firstName, customer.lastName)}
-                  </button>
-                  <p className="text-xs text-gray-400 truncate">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className="text-sm font-semibold text-gray-900 truncate">
+                      {formatName(customer.firstName, customer.lastName)}
+                    </span>
+                    <span className="text-[11px] text-gray-400 flex-shrink-0">
+                      {lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric' }) : '—'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 truncate mb-1.5">
                     {lesson.instructor ? formatName(lesson.instructor.firstName, lesson.instructor.lastName) : ''}
                     {lesson.location ? ` · ${lesson.location.name}` : ''}
                   </p>
+                  {lesson.lessonType && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 max-w-full truncate">
+                      {lesson.lessonType}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {lesson.lessonType && <Badge variant="gray">{lesson.lessonType}</Badge>}
-                  <span className="text-xs text-gray-400 hidden sm:block">
-                    {lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric' }) : '—'}
-                  </span>
-                </div>
-                <button
-                  onClick={() => onViewCustomer(customer.id)}
-                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
-                >
-                  <Eye className="w-3 h-3" />{t('Common.view')}
-                </button>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -688,7 +687,7 @@ export default function HomePage() {
                             <span className="text-xs text-gray-400 hidden sm:block font-mono">{u.username}</span>
                             <Badge variant={u.role === 'MANAGER' ? 'blue' : 'green'}>{u.role}</Badge>
                             <span className="text-xs text-gray-400 hidden lg:block">{new Date(u.createdAt || '').toLocaleDateString()}</span>
-                            <button onClick={() => deleteUser(u.id, formatName(u.firstName, u.lastName))} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
+                            <button onClick={() => deleteUser(u.id, formatName(u.firstName, u.lastName))} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors sm:opacity-0 sm:group-hover:opacity-100">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -728,7 +727,7 @@ export default function HomePage() {
                             <span className="text-xs text-gray-400 hidden lg:block">
                               {c.lessonParticipants?.[0]?.lesson?.createdAt ? new Date(c.lessonParticipants[0].lesson.createdAt).toLocaleDateString() : 'No lessons'}
                             </span>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => openEdit(c)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => deleteCustomer(c.id, formatName(c.firstName, c.lastName))} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
@@ -876,15 +875,15 @@ export default function HomePage() {
           const initSx = oldest?.customerSymptoms || ''
           return (
             <div className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
                 {[
                   { label: t('HomePage.email'), value: detailModal.email },
                   { label: t('HomePage.phone'), value: detailModal.phone || '—' },
                   { label: t('HomePage.since'), value: detailModal.createdAt ? new Date(detailModal.createdAt).toLocaleDateString() : '—' }
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-gray-50 rounded-xl p-3.5">
-                    <p className="text-[11px] text-gray-400 mb-1 uppercase tracking-wide font-medium">{label}</p>
-                    <p className="text-sm font-medium text-gray-900 break-all">{value}</p>
+                  <div key={label} className="flex items-center gap-4 px-4 py-3">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold w-12 flex-shrink-0">{label}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate flex-1">{value}</p>
                   </div>
                 ))}
               </div>
