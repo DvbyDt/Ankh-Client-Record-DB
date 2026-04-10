@@ -287,6 +287,25 @@ export default function HomePage() {
   // ── Counts ──
   const [customerCount, setCustomerCount] = useState<number | null>(null)
 
+  // ── App Settings ──
+  const [appSettings, setAppSettings] = useState({
+    allowInstructorExport: true,
+    showInitialSymptoms: true,
+    showFeedbackBadge: true,
+    showCustomerPhone: true,
+  })
+
+  useEffect(() => {
+    // Read from cookie first (fast), then hydrate from API
+    try {
+      const cached = Cookies.get('app-settings')
+      if (cached) setAppSettings(prev => ({ ...prev, ...JSON.parse(cached) }))
+    } catch { /* ignore */ }
+    fetch('/api/settings').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.settings) setAppSettings(prev => ({ ...prev, ...d.settings }))
+    }).catch(() => { /* use defaults */ })
+  }, [])
+
   // ── Panels ──
   const [showAllCustomers, setShowAllCustomers] = useState(false)
   const [allCustomers, setAllCustomers] = useState<Customer[]>([])
@@ -618,10 +637,12 @@ export default function HomePage() {
                   <Btn onClick={() => router.push(`/${locale}/add-record`)}>
                     <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
                   </Btn>
-                  {/* Issue 6: Export CSV available to all (including instructors) */}
-                  <a href="/api/export-csv" download="customer_records.csv">
-                    <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
-                  </a>
+                  {/* Export CSV — restricted to managers if allowInstructorExport is off */}
+                  {(currentUser?.role === 'MANAGER' || appSettings.allowInstructorExport) && (
+                    <a href="/api/export-csv" download="customer_records.csv">
+                      <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
+                    </a>
+                  )}
                   {/* Issue 6: Import CSV only for managers */}
                   {currentUser?.role === 'MANAGER' && (
                     <Btn variant="secondary" onClick={() => setUploadModal(true)}>
@@ -726,7 +747,7 @@ export default function HomePage() {
                               <button onClick={() => fetchDetail(c.id)} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left">{formatName(c.firstName, c.lastName)}</button>
                               <p className="text-xs text-gray-400 truncate">{c.email}</p>
                             </div>
-                            <span className="text-xs text-gray-400 hidden sm:block">{c.phone || '—'}</span>
+                            {appSettings.showCustomerPhone && <span className="text-xs text-gray-400 hidden sm:block">{c.phone || '—'}</span>}
                             <span className="text-xs text-gray-400 hidden lg:block">
                               {c.lessonParticipants?.[0]?.lesson?.createdAt ? new Date(c.lessonParticipants[0].lesson.createdAt).toLocaleDateString() : 'No lessons'}
                             </span>
@@ -782,7 +803,7 @@ export default function HomePage() {
                           <Avatar name={`${c.firstName} ${c.lastName}`} color="violet" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{formatName(c.firstName, c.lastName)}</p>
-                            <p className="text-xs text-gray-400 truncate">{c.email}{c.phone ? ` · ${c.phone}` : ''}</p>
+                            <p className="text-xs text-gray-400 truncate">{c.email}{appSettings.showCustomerPhone && c.phone ? ` · ${c.phone}` : ''}</p>
                           </div>
                           {/* Issue 5: action buttons always visible on mobile */}
                           <div className="flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
@@ -816,7 +837,7 @@ export default function HomePage() {
                                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                                       <span className="text-xs font-semibold text-gray-800">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
                                       <Badge>{lp.lesson.lessonType}</Badge>
-                                      {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                                      {lp.status && appSettings.showFeedbackBadge && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
                                       <span className="text-xs text-gray-400 ml-auto">{formatName(lp.lesson.instructor.firstName, lp.lesson.instructor.lastName)}</span>
                                     </div>
                                     {lp.customerSymptoms && <p className="text-xs text-gray-600"><span className="font-semibold text-gray-700">{t('CustomerSearch.symptoms')}:</span> {lp.customerSymptoms}</p>}
@@ -918,7 +939,7 @@ export default function HomePage() {
               <div className="rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
                 {[
                   { label: t('HomePage.email'), value: detailModal.email },
-                  { label: t('HomePage.phone'), value: detailModal.phone || '—' },
+                  ...(appSettings.showCustomerPhone ? [{ label: t('HomePage.phone'), value: detailModal.phone || '—' }] : []),
                   { label: t('HomePage.since'), value: oldest?.lesson?.createdAt ? new Date(oldest.lesson.createdAt).toLocaleDateString() : '—' }
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center gap-4 px-4 py-3">
@@ -929,7 +950,7 @@ export default function HomePage() {
               </div>
 
               {/* Initial symptoms — from the oldest (first) session */}
-              {initSx && (
+              {initSx && appSettings.showInitialSymptoms && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5">
                   <p className="text-[11px] text-amber-600 mb-1 uppercase tracking-wide font-semibold">{t('CustomerSearch.initialSymptoms')}</p>
                   <p className="text-sm text-gray-800">{initSx}</p>
@@ -974,7 +995,7 @@ export default function HomePage() {
                                 <span className="text-sm font-semibold text-gray-900">{lp.lesson.createdAt ? new Date(lp.lesson.createdAt).toLocaleDateString() : '—'}</span>
                                 <Badge>{lp.lesson.lessonType}</Badge>
                                 {lp.lesson.location && <Badge variant="blue">{lp.lesson.location.name}</Badge>}
-                                {lp.status && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
+                                {lp.status && appSettings.showFeedbackBadge && <Badge variant={lp.status === 'attended' ? 'green' : 'amber'}>{lp.status}</Badge>}
                               </div>
                               {!isExpanded && !isEditing && lp.customerSymptoms && (
                                 <p className="text-xs text-gray-400 truncate max-w-xs">{lp.customerSymptoms}</p>

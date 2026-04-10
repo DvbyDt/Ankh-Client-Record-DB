@@ -115,6 +115,13 @@ model LessonParticipant {
   @@map("lesson_participants")
 }
 
+model AppSettings {
+  id       String @id @default("singleton")
+  settings Json   @default("{}")
+
+  @@map("app_settings")
+}
+
 model ImportJob {
   id        String   @id @default(cuid())
   status    String   @default("queued")
