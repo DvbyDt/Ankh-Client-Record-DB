@@ -192,6 +192,7 @@
     "exportCSV": "CSV 내보내기",
     "importCSV": "CSV 가져오기",
     "manageUsers": "사용자 관리",
+    "settings": "설정",
     "searchRecords": "기록 검색",
     "searchRecordsDesc": "고객, 강사 또는 수업 위치 검색",
     "searchResults": "검색 결과",
