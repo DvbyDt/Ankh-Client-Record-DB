@@ -621,15 +621,11 @@ export default function HomePage() {
 
               {/* ── Toolbar ── */}
               <div className="bg-white rounded-2xl border border-gray-100 px-5 py-5 shadow-sm space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h1 className="text-[15px] font-semibold text-gray-900">{t('HomePage.dashboardTitle')}</h1>
-                    <p className="text-xs text-gray-400 mt-0.5">{t('HomePage.dashboardDesc')}</p>
-                  </div>
-                  {currentUser && (
-                    <div className="hidden sm:flex items-center gap-2">
-                      <Badge variant={currentUser.role === 'MANAGER' ? 'blue' : 'green'}>{currentUser.role}</Badge>
-                    </div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-[15px] font-semibold text-gray-900">{t('HomePage.dashboardTitle')}</h1>
+                  {currentUser && <Badge variant={currentUser.role === 'MANAGER' ? 'blue' : 'green'}>{currentUser.role}</Badge>}
+                  {customerCount !== null && (
+                    <span className="text-xs text-gray-400 font-medium">{customerCount.toLocaleString()} {t('HomePage.allCustomersTitle').toLowerCase()}</span>
                   )}
                 </div>
                 {/* Row 1 — primary actions */}
