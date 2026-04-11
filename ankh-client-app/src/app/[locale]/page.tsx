@@ -182,34 +182,6 @@ function Btn({ children, variant = 'primary', size = 'md', className = '', ...pr
   return <button {...props} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{children}</button>
 }
 
-// ─── Stats Strip ──────────────────────────────────────────────────────────────
-function StatsStrip({ customerCount, lessonCount, instructorCount, loading }: {
-  customerCount: number | null; lessonCount: number; instructorCount: number; loading: boolean
-}) {
-  const stats = [
-    { icon: <Users className="w-5 h-5 text-blue-500" />, value: customerCount ?? '—', label: 'Total Customers', bg: 'bg-blue-50' },
-    { icon: <BookOpen className="w-5 h-5 text-violet-500" />, value: lessonCount, label: 'Total Sessions', bg: 'bg-violet-50' },
-    { icon: <Activity className="w-5 h-5 text-emerald-500" />, value: instructorCount, label: 'Active Instructors', bg: 'bg-emerald-50' },
-  ]
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      {stats.map(({ icon, value, label, bg }) => (
-        <div key={label} className="bg-white rounded-2xl border border-gray-100 px-5 py-4 flex items-center gap-4">
-          <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
-            {icon}
-          </div>
-          <div className="min-w-0">
-            {loading
-              ? <div className="h-6 w-14 bg-gray-100 rounded-lg animate-pulse mb-1" />
-              : <p className="text-2xl font-bold text-gray-900 leading-none">{typeof value === 'number' ? value.toLocaleString() : value}</p>}
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mt-1">{label}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ─── Recent Lessons component ─────────────────────────────────────────────────
 function RecentLessons({ locale, formatName, onViewCustomer }: {
   locale: string
@@ -314,8 +286,6 @@ export default function HomePage() {
 
   // ── Counts ──
   const [customerCount, setCustomerCount] = useState<number | null>(null)
-  const [stats, setStats] = useState({ lessonCount: 0, instructorCount: 0 })
-  const [statsLoading, setStatsLoading] = useState(true)
 
   // ── App Settings ──
   const [appSettings, setAppSettings] = useState({
@@ -388,15 +358,7 @@ export default function HomePage() {
       if (u) { setCurrentUser(JSON.parse(u)); setIsLoggedIn(true) }
     }
   }, [])
-  useEffect(() => {
-    if (!isLoggedIn) return
-    fetchCount()
-    setStatsLoading(true)
-    fetch('/api/stats')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStats({ lessonCount: d.lessonCount, instructorCount: d.instructorCount }) })
-      .finally(() => setStatsLoading(false))
-  }, [isLoggedIn])
+  useEffect(() => { if (isLoggedIn) fetchCount() }, [isLoggedIn])
 
   // ── Search effect ──
   useEffect(() => {
@@ -659,15 +621,11 @@ export default function HomePage() {
 
               {/* ── Toolbar ── */}
               <div className="bg-white rounded-2xl border border-gray-100 px-5 py-5 shadow-sm space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h1 className="text-[15px] font-semibold text-gray-900">{t('HomePage.dashboardTitle')}</h1>
-                    <p className="text-xs text-gray-400 mt-0.5">{t('HomePage.dashboardDesc')}</p>
-                  </div>
-                  {currentUser && (
-                    <div className="hidden sm:flex items-center gap-2">
-                      <Badge variant={currentUser.role === 'MANAGER' ? 'blue' : 'green'}>{currentUser.role}</Badge>
-                    </div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-[15px] font-semibold text-gray-900">{t('HomePage.dashboardTitle')}</h1>
+                  {currentUser && <Badge variant={currentUser.role === 'MANAGER' ? 'blue' : 'green'}>{currentUser.role}</Badge>}
+                  {customerCount !== null && (
+                    <span className="text-xs text-gray-400 font-medium">{customerCount.toLocaleString()} {t('HomePage.allCustomersTitle').toLowerCase()}</span>
                   )}
                 </div>
                 {/* Row 1 — primary actions */}
@@ -799,9 +757,6 @@ export default function HomePage() {
                   )}
                 </div>
               )}
-
-              {/* ── Stats strip ── */}
-              <StatsStrip customerCount={customerCount} lessonCount={stats.lessonCount} instructorCount={stats.instructorCount} loading={statsLoading} />
 
               {/* ── Recent Lessons quick-view ── */}
               <RecentLessons locale={locale} formatName={formatName} onViewCustomer={fetchDetail} />
