@@ -104,7 +104,10 @@ function InstructorCheckbox({
   const displayName = instructor.lastName ? `${instructor.lastName} ${instructor.firstName}` : instructor.firstName
 
   return (
-    <label className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${disabled ? 'opacity-40 cursor-not-allowed' : checked ? 'border-gray-300 bg-gray-50' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50/50'}`}>
+    <label
+      onClick={e => { e.preventDefault(); if (!disabled) onChange(!checked) }}
+      className={`flex items-center gap-3 p-3 rounded-xl border transition-all select-none ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer ' + (checked ? 'border-gray-300 bg-gray-50' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50/50')}`}
+    >
       <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${disabled ? 'border-gray-200 bg-gray-100' : checked ? 'border-gray-900 bg-gray-900' : 'border-gray-300 bg-white'}`}>
         {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
       </div>
@@ -272,10 +275,10 @@ export default function SettingsPage() {
     }
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'visibility', label: 'App Visibility' },
-    { id: 'experience', label: 'User Experience' },
-    { id: 'features', label: 'Feature Management' },
+  const tabs: { id: Tab; label: string; sublabel: string }[] = [
+    { id: 'visibility', label: 'Instructor Access', sublabel: 'Control who appears in dropdowns' },
+    { id: 'experience', label: 'Display & Defaults', sublabel: 'Format and pre-fill preferences' },
+    { id: 'features', label: 'Permissions & Rules', sublabel: 'Access control and validation' },
   ]
 
   return (
@@ -312,14 +315,16 @@ export default function SettingsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-gray-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-300'}`}
+                title={tab.sublabel}
+                className={`flex-shrink-0 flex flex-col items-start px-4 py-2.5 rounded-xl text-left transition-colors ${activeTab === tab.id ? 'bg-gray-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-300'}`}
               >
-                {tab.label}
+                <span className="text-sm font-semibold">{tab.label}</span>
+                <span className={`text-[10px] mt-0.5 hidden sm:block ${activeTab === tab.id ? 'text-gray-400' : 'text-gray-400'}`}>{tab.sublabel}</span>
               </button>
             ))}
           </div>
