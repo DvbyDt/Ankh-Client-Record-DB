@@ -18,9 +18,7 @@ export async function GET(_request: NextRequest) {
       { results: instructors },
       {
         headers: {
-          // Instructor list is stable — serve from cache for 60s,
-          // then stale-while-revalidate for up to 5 minutes.
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300'
+          'Cache-Control': 'no-store'
         }
       }
     )
