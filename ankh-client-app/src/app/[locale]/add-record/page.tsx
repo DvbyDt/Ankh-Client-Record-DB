@@ -130,7 +130,8 @@ export default function AddRecordPage() {
     const token = Cookies.get('jwt-token')
     try {
       const response = await fetch('/api/users/instructors', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },
+        cache: 'no-store'
       })
       if (response.ok) {
         const data = await response.json()
@@ -140,6 +141,15 @@ export default function AddRecordPage() {
       console.error('Error fetching instructors:', error)
     }
   }
+
+  // Re-fetch instructors when tab becomes visible again (e.g. after saving Settings)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchInstructors()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
 
   const fetchLocations = async () => {
     try {
