@@ -629,25 +629,22 @@ export default function HomePage() {
                   )}
                 </div>
                 {/* Row 1 — primary actions */}
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <Btn onClick={() => router.push(`/${locale}/add-record`)}>
-                      <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Btn onClick={() => router.push(`/${locale}/add-record`)}>
+                    <Plus className="w-3.5 h-3.5" />{t('HomePage.addNewRecord')}
+                  </Btn>
+                  {/* Export CSV — restricted to managers if allowInstructorExport is off */}
+                  {(currentUser?.role === 'MANAGER' || appSettings.allowInstructorExport) && (
+                    <a href="/api/export-csv" download="customer_records.csv">
+                      <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
+                    </a>
+                  )}
+                  {/* Issue 6: Import CSV only for managers */}
+                  {currentUser?.role === 'MANAGER' && (
+                    <Btn variant="secondary" onClick={() => setUploadModal(true)}>
+                      <Upload className="w-3.5 h-3.5" />{t('HomePage.importCSV')}
                     </Btn>
-                    {/* Export CSV — restricted to managers if allowInstructorExport is off */}
-                    {(currentUser?.role === 'MANAGER' || appSettings.allowInstructorExport) && (
-                      <a href="/api/export-csv" download="customer_records.csv">
-                        <Btn variant="secondary"><Download className="w-3.5 h-3.5" />{t('HomePage.exportCSV')}</Btn>
-                      </a>
-                    )}
-                    {/* Import CSV only for managers */}
-                    {currentUser?.role === 'MANAGER' && (
-                      <Btn variant="secondary" onClick={() => setUploadModal(true)}>
-                        <Upload className="w-3.5 h-3.5" />{t('HomePage.importCSV')}
-                      </Btn>
-                    )}
-                  </div>
-                  <p className="hidden md:block text-xs text-gray-400 text-right max-w-xs leading-relaxed">{t('HomePage.dashboardDesc')}</p>
+                  )}
                 </div>
 
                 {/* Row 2 — manager-only actions */}
