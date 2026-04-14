@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Upload, X, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, X, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, ChevronDown } from 'lucide-react'
 import Cookies from 'js-cookie'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -95,6 +95,7 @@ export function UploadModal({ open, onClose, onSuccess }: UploadModalProps) {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [fileError, setFileError] = useState('')
+  const [showGuide, setShowGuide] = useState(false)
   const [job, setJob] = useState<JobState>({
     jobId: null, status: 'idle', progress: 0, message: '', totalRows: 0, rowErrors: [],
   })
@@ -272,6 +273,59 @@ export function UploadModal({ open, onClose, onSuccess }: UploadModalProps) {
                 <input type="file" accept=".csv,.xlsx,.xls" className="hidden"
                   onChange={e => handleFile(e.target.files?.[0] || null)} />
               </label>
+            )}
+
+            {/* ── Column guide ──────────────────────────────────────────────── */}
+            {job.status === 'idle' && (
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowGuide(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"
+                >
+                  <span>Column reference</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showGuide ? 'rotate-180' : ''}`} />
+                </button>
+                {showGuide && (
+                  <div className="px-4 pb-3 space-y-2">
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Required</p>
+                      <div className="space-y-0.5">
+                        {[
+                          { col: 'Customer Name', note: 'Full name of the customer' },
+                        ].map(r => (
+                          <div key={r.col} className="flex items-baseline gap-2">
+                            <code className="text-[11px] font-mono bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded">{r.col}</code>
+                            <span className="text-[11px] text-gray-400">{r.note}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Optional (auto-filled if missing)</p>
+                      <div className="space-y-0.5">
+                        {[
+                          { col: 'Customer ID',   note: 'Auto-generated from name' },
+                          { col: 'Lesson ID',     note: 'Auto-generated from date + instructor' },
+                          { col: 'Lesson Date',   note: 'Date of the session' },
+                          { col: 'Instructor Name', note: 'Instructor full name' },
+                          { col: 'Lesson Type',   note: 'Defaults to "Group"' },
+                          { col: 'Location Name', note: 'Defaults to "Default Location"' },
+                          { col: 'Lesson Content', note: 'Session notes' },
+                          { col: 'Customer Symptoms', note: 'Reported symptoms' },
+                          { col: 'Customer Improvements', note: 'Progress notes' },
+                          { col: 'Course Completion Status', note: 'Feedback / completion' },
+                        ].map(r => (
+                          <div key={r.col} className="flex items-baseline gap-2">
+                            <code className="text-[11px] font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">{r.col}</code>
+                            <span className="text-[11px] text-gray-400">{r.note}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {fileError && (

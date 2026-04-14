@@ -71,7 +71,20 @@ export async function POST(request: NextRequest) {
         const canonical = HEADER_MAP[key]
         if (canonical) norm[canonical] = v
       }
-      if (!norm.customerId || !norm.lessonId) continue
+      // Auto-generate customerId from customer name if absent
+      if (!norm.customerId) {
+        const name = String(norm.customerName || '').trim()
+        if (!name) continue // skip rows with no identifiable customer
+        norm.customerId = 'cust_' + name.replace(/\s+/g, '_')
+      }
+      // Auto-generate lessonId from key fields if absent
+      if (!norm.lessonId) {
+        const datePart = String(norm.lessonDate || 'nodate').slice(0, 10)
+        const instPart = String(norm.instructorName || 'noinstructor').replace(/\s+/g, '_')
+        const typePart = String(norm.lessonType || 'Group').replace(/\s+/g, '_')
+        const locPart  = String(norm.locationName  || 'Default').replace(/\s+/g, '_')
+        norm.lessonId = `lesson_${datePart}_${instPart}_${typePart}_${locPart}`
+      }
       rows.push({
         customerId: String(norm.customerId).trim(),
         customerName: String(norm.customerName || '').trim(),
