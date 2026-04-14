@@ -74,7 +74,8 @@ export async function GET(_request: NextRequest) {
       ].map(csvEscape).join(',')
     })
 
-    const csvContent = [headers.join(','), ...rows].join('\n')
+    // UTF-8 BOM (\uFEFF) ensures Excel opens Korean characters correctly
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n')
 
     const response = new NextResponse(csvContent)
     response.headers.set('Content-Type', 'text/csv; charset=utf-8')
