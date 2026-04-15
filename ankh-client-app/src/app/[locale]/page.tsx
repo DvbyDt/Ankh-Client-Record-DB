@@ -758,9 +758,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* ── Recent Lessons quick-view ── */}
-              <RecentLessons locale={locale} formatName={formatName} onViewCustomer={fetchDetail} />
-
               {/* ── Search box ── */}
               <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="px-6 pt-5 pb-4">
@@ -867,6 +864,9 @@ export default function HomePage() {
                   <div className="border-t border-gray-50 px-6 py-4 text-center text-xs text-gray-400">{t('HomePage.typeAtLeast2')}</div>
                 )}
               </div>
+
+              {/* ── Recent Lessons quick-view ── */}
+              <RecentLessons locale={locale} formatName={formatName} onViewCustomer={fetchDetail} />
             </div>
           )}
         </main>

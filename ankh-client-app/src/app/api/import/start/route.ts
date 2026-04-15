@@ -25,14 +25,45 @@ function safeDate(val: unknown): Date | undefined {
   if (!val) return undefined
   if (val instanceof Date) return isNaN(val.getTime()) ? undefined : val
   if (typeof val === 'number' && val > 30000 && val < 99999) {
+    // Excel serial number → JS date
     const d = new Date((val - 25569) * 86400 * 1000)
     return isNaN(d.getTime()) ? undefined : d
   }
   if (typeof val === 'string' && val.trim()) {
-    const d = new Date(val.trim())
+    const s = val.trim()
+    // Handle DD/MM/YYYY or DD/M/YYYY (Korean Excel format — JS Date() parses as MM/DD)
+    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)
+    if (dmy) {
+      const d = new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]))
+      return isNaN(d.getTime()) ? undefined : d
+    }
+
+    //fallback
+    const d = new Date(s)
     return isNaN(d.getTime()) ? undefined : d
   }
   return undefined
+}
+
+// Extract an ISO date string (YYYY-MM-DD) from any raw cell value for stable lessonId generation
+function rawToDatePart(val: unknown): string {
+  if (!val) return 'nodate'
+  if (val instanceof Date && !isNaN(val.getTime())) return val.toISOString().slice(0, 10)
+  if (typeof val === 'number' && val > 30000 && val < 99999) {
+    const d = new Date((val - 25569) * 86400 * 1000)
+    return isNaN(d.getTime()) ? 'nodate' : d.toISOString().slice(0, 10)
+  }
+  if (typeof val === 'string') {
+    const s = val.trim()
+    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)
+    if (dmy) {
+      const d = new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]))
+      return isNaN(d.getTime()) ? 'nodate' : d.toISOString().slice(0, 10)
+    }
+    const d = new Date(s)
+    return isNaN(d.getTime()) ? 'nodate' : d.toISOString().slice(0, 10)
+  }
+  return 'nodate'
 }
 
 export async function POST(request: NextRequest) {
@@ -50,7 +81,7 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { raw: false })
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { raw: true })
 
     if (rawRows.length === 0) return NextResponse.json({ error: 'File is empty' }, { status: 400 })
 
@@ -79,7 +110,7 @@ export async function POST(request: NextRequest) {
       }
       // Auto-generate lessonId from key fields if absent
       if (!norm.lessonId) {
-        const datePart = String(norm.lessonDate || 'nodate').slice(0, 10)
+        const datePart = rawToDatePart(norm.lessonDate)
         const instPart = String(norm.instructorName || 'noinstructor').replace(/\s+/g, '_')
         const typePart = String(norm.lessonType || 'Group').replace(/\s+/g, '_')
         const locPart  = String(norm.locationName  || 'Default').replace(/\s+/g, '_')

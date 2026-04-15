@@ -55,7 +55,6 @@ interface CustomerFormData {
   name: string       // Single full-name field (UI only)
   firstName: string  // Split before submit
   lastName: string   // Split before submit
-  email: string
   phone?: string
   symptoms: string
   improvements: string
@@ -96,7 +95,7 @@ export default function AddRecordPage() {
 
   // Edit mode state (search screen)
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
-  const [editFormData, setEditFormData] = useState<{ name: string; email: string; phone: string }>({ name: '', email: '', phone: '' })
+  const [editFormData, setEditFormData] = useState<{ name: string; phone: string }>({ name: '', phone: '' })
   const [isEditingSaving, setIsEditingSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
@@ -108,7 +107,7 @@ export default function AddRecordPage() {
     locationId: '',
     lessonType: 'Group',
     lessonDate: '',
-    customers: [{ name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
+    customers: [{ name: '', firstName: '', lastName: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -207,7 +206,6 @@ export default function AddRecordPage() {
         name: formatName(customer.firstName, customer.lastName),
         firstName: customer.firstName,
         lastName: customer.lastName,
-        email: customer.email,
         phone: customer.phone || '',
         symptoms: '',
         improvements: '',
@@ -221,7 +219,6 @@ export default function AddRecordPage() {
     setEditingCustomerId(customer.id)
     setEditFormData({
       name: formatName(customer.firstName, customer.lastName),
-      email: customer.email,
       phone: customer.phone || ''
     })
     setEditError(null)
@@ -230,7 +227,7 @@ export default function AddRecordPage() {
   const handleSaveCustomerEdit = async () => {
     if (!editingCustomerId) return
 
-    if (!editFormData.name.trim() || !editFormData.email.trim()) {
+    if (!editFormData.name.trim()) {
       setEditError(t('AddRecord.requiredEditFields'))
       return
     }
@@ -251,7 +248,6 @@ export default function AddRecordPage() {
         body: JSON.stringify({
           firstName,
           lastName,
-          email: editFormData.email,
           phone: editFormData.phone || null
         })
       })
@@ -260,7 +256,7 @@ export default function AddRecordPage() {
         setSearchResults(prev =>
           prev.map(customer =>
             customer.id === editingCustomerId
-              ? { ...customer, firstName, lastName, email: editFormData.email, phone: editFormData.phone }
+              ? { ...customer, firstName, lastName, phone: editFormData.phone }
               : customer
           )
         )
@@ -279,7 +275,7 @@ export default function AddRecordPage() {
 
   const handleCancelEdit = () => {
     setEditingCustomerId(null)
-    setEditFormData({ name: '', email: '', phone: '' })
+    setEditFormData({ name: '', phone: '' })
     setEditError(null)
   }
 
@@ -290,7 +286,7 @@ export default function AddRecordPage() {
     // For existing customer flow, additional rows are new customers (editable)
     setLessonForm({
       ...lessonForm,
-      customers: [...lessonForm.customers, { name: '', firstName: '', lastName: '', email: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
+      customers: [...lessonForm.customers, { name: '', firstName: '', lastName: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
     })
   }
 
@@ -505,7 +501,6 @@ export default function AddRecordPage() {
                           <div className="flex justify-between items-start">
                             <div className="flex-1 cursor-pointer" onClick={() => handleSelectExistingCustomer(customer)} translate="no">
                               <p className="font-medium">{formatName(customer.firstName, customer.lastName)}</p>
-                              <p className="text-sm text-gray-600">{customer.email}</p>
                               {customer.phone && (
                                 <p className="text-sm text-gray-500">{customer.phone}</p>
                               )}
@@ -533,15 +528,6 @@ export default function AddRecordPage() {
                                   value={editFormData.name}
                                   onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                                   placeholder={t('AddRecord.namePlaceholder')}
-                                />
-                              </div>
-                              <div>
-                                <Label>{t('CustomerSearch.email')} *</Label>
-                                <Input
-                                  type="email"
-                                  value={editFormData.email}
-                                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                                  placeholder={t('AddRecord.placeholderEmail')}
                                 />
                               </div>
                               <div>
@@ -751,21 +737,12 @@ export default function AddRecordPage() {
                               />
                             </div>
                             <div>
-                              <Label className="mb-2 block">{t('CustomerSearch.email')} *</Label>
-                              <Input
-                                type="email"
-                                value={customer.email}
-                                onChange={(e) => updateCustomerField(index, 'email', e.target.value)}
-                                disabled={isDisabled}
-                                required
-                              />
-                            </div>
-                            <div>
                               <Label className="mb-2 block">{t('Dialogs.phone')}</Label>
                               <Input
                                 value={customer.phone || ''}
                                 onChange={(e) => updateCustomerField(index, 'phone', e.target.value)}
                                 disabled={isDisabled}
+                                placeholder={t('AddRecord.placeholderPhone')}
                               />
                             </div>
                           </div>

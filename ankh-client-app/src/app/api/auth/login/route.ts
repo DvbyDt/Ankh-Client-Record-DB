@@ -17,9 +17,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find user by username
-    const user = await prisma.user.findUnique({
-      where: { username },
+    // Find user by username or email (instructors imported from Excel have auto-generated usernames)
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ username }, { email: username }]
+      },
       select: {
         id: true,
         username: true,
@@ -38,30 +40,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 🔑 NEW: 1. Prepare non-sensitive payload data
-    const payload = {
-      userId: user.id,
-      username: user.username,
-      role: user.role
-    };
-
-    // 🔑 NEW: 2. Generate the JWT (The Magic Key!)
-    const token = jwt.sign(
-      payload,
-      JWT_SECRET,
-      { expiresIn: '1d' } // Token expires in 1 day
-    );
-
-    // Compare password
+    // Compare password first, then sign token
     const isPasswordValid = await bcrypt.compare(password, user.password)
-    // const isPasswordValid = password === user.password;
-    console.log(`${password} and user.password ${user.password}`)
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: 'Invalid username or password' },
         { status: 401 }
       )
     }
+
+    const payload = { userId: user.id, username: user.username, role: user.role }
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' })
 
     // Return user data (excluding password)
     const { password: _, ...userData } = user

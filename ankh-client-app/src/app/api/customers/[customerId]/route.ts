@@ -102,9 +102,9 @@ export async function PUT(
     const body = await request.json()
     const { firstName, lastName, email, phone } = body
 
-    if (!firstName || !lastName || !email) {
+    if (!firstName || !lastName) {
       return NextResponse.json(
-        { error: 'First name, last name, and email are required' },
+        { error: 'First name and last name are required' },
         { status: 400 }
       )
     }
@@ -119,7 +119,7 @@ export async function PUT(
 
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
-      data: { firstName, lastName, email, phone: phone || null },
+      data: { firstName, lastName, email: email?.trim() || null, phone: phone || null },
       select: {
         id: true,
         firstName: true,
