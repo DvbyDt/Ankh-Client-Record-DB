@@ -70,16 +70,41 @@ export async function POST(request: NextRequest) {
 
         // Process customers array
         for (const customerData of customers) {
-            const customer = await prisma.customer.upsert({
-                where: { email: customerData.email },
-                update: {},
-                create: {
-                    email: customerData.email,
-                    firstName: customerData.firstName,
-                    lastName: customerData.lastName,
-                    phone: customerData.phone || null
-                }
-            });
+            // If email provided, upsert by email. Otherwise find by phone or create fresh.
+            let customer
+            if (customerData.email && customerData.email.trim()) {
+                customer = await prisma.customer.upsert({
+                    where: { email: customerData.email },
+                    update: {},
+                    create: {
+                        email: customerData.email,
+                        firstName: customerData.firstName,
+                        lastName: customerData.lastName,
+                        phone: customerData.phone || null
+                    }
+                })
+            } else if (customerData.id) {
+                // Existing customer passed by ID (existing customer flow)
+                const found = await prisma.customer.findUnique({ where: { id: customerData.id } })
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                customer = found ?? await (prisma.customer.create as any)({
+                    data: {
+                        firstName: customerData.firstName,
+                        lastName: customerData.lastName,
+                        phone: customerData.phone || null
+                    }
+                })
+            } else {
+                // New customer, no email — create without email
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                customer = await (prisma.customer.create as any)({
+                    data: {
+                        firstName: customerData.firstName,
+                        lastName: customerData.lastName,
+                        phone: customerData.phone || null
+                    }
+                })
+            }
 
             // Create lesson participant entry
             await prisma.lessonParticipant.create({
