@@ -10,44 +10,59 @@ const csvEscape = (value: unknown) => {
 
 export async function GET(_request: NextRequest) {
   try {
-    const lessonParticipants = await prisma.lessonParticipant.findMany({
-      where: { customer: { deletedAt: null } },
-      orderBy: { lesson: { createdAt: 'desc' } },
-      select: {
-        customer: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        lesson: {
-          select: {
-            id: true,
-            lessonType: true,
-            lessonContent: true,
-            createdAt: true,
-            instructor: { select: { firstName: true, lastName: true } },
-            location: { select: { name: true } }
-          }
-        },
-        customerSymptoms: true,
-        customerImprovements: true
-      }
-    })
+    const [lessonParticipants, initialSymptomRecords] = await Promise.all([
+      prisma.lessonParticipant.findMany({
+        where: { customer: { deletedAt: null } },
+        orderBy: { lesson: { createdAt: 'desc' } },
+        select: {
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          },
+          lesson: {
+            select: {
+              id: true,
+              lessonType: true,
+              lessonContent: true,
+              createdAt: true,
+              instructor: { select: { firstName: true, lastName: true } },
+              location: { select: { name: true } }
+            }
+          },
+          customerSymptoms: true,
+          customerImprovements: true,
+          status: true
+        }
+      }),
+      // Initial symptom = oldest lesson's customerSymptoms per customer
+      prisma.lessonParticipant.findMany({
+        where: { customer: { deletedAt: null }, customerSymptoms: { not: null } },
+        orderBy: { lesson: { createdAt: 'asc' } },
+        distinct: ['customerId'],
+        select: { customerId: true, customerSymptoms: true }
+      })
+    ])
+
+    const initialSymptomMap = new Map(
+      initialSymptomRecords.map(r => [r.customerId, r.customerSymptoms ?? ''])
+    )
 
     const headers = [
-      'Customer ID',
-      'Customer Name',
-      'Initial Symptom',
-      'Lesson ID',
       'Lesson Date',
+      'Customer Name',
       'Instructor Name',
-      'Lesson Type',
-      'Location Name',
-      'Customer Symptoms',
+      'Lesson Location',
+      'Customer Improvements',
       'Lesson Content',
-      'Course Completion Status'
+      'Customer Feedback',
+      'Lesson Type',
+      'Customer Symptoms',
+      'Initial Symptom',
+      'Customer ID',
+      'Lesson ID'
     ]
 
     const rows = lessonParticipants.map(p => {
@@ -60,17 +75,18 @@ export async function GET(_request: NextRequest) {
         : ''
 
       return [
-        p.customer.id,
-        customerName,
-        '', // Initial Symptom is not stored in current schema
-        p.lesson.id,
         lessonDate,
+        customerName,
         instructorName,
-        p.lesson.lessonType || '',
         p.lesson.location?.name || '',
-        p.customerSymptoms || '',
+        p.customerImprovements || '',
         p.lesson.lessonContent || '',
-        p.customerImprovements || ''
+        p.status || '',
+        p.lesson.lessonType || '',
+        p.customerSymptoms || '',
+        initialSymptomMap.get(p.customer.id) || '',
+        p.customer.id,
+        p.lesson.id
       ].map(csvEscape).join(',')
     })
 

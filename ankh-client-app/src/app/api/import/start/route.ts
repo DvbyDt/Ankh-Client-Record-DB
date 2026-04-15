@@ -31,10 +31,12 @@ function safeDate(val: unknown): Date | undefined {
   }
   if (typeof val === 'string' && val.trim()) {
     const s = val.trim()
-    // Handle DD/MM/YYYY or DD/M/YYYY (Korean Excel format — JS Date() parses as MM/DD)
-    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)
+    // Handle DD/MM/YYYY, DD/MM/YY, DD/M/YYYY, DD/M/YY (Korean Excel format)
+    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/)
     if (dmy) {
-      const d = new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]))
+      let year = parseInt(dmy[3])
+      if (year < 100) year += 2000  // 26 → 2026
+      const d = new Date(year, parseInt(dmy[2]) - 1, parseInt(dmy[1]))
       return isNaN(d.getTime()) ? undefined : d
     }
 
@@ -55,9 +57,11 @@ function rawToDatePart(val: unknown): string {
   }
   if (typeof val === 'string') {
     const s = val.trim()
-    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)
+    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/)
     if (dmy) {
-      const d = new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]))
+      let year = parseInt(dmy[3])
+      if (year < 100) year += 2000
+      const d = new Date(year, parseInt(dmy[2]) - 1, parseInt(dmy[1]))
       return isNaN(d.getTime()) ? 'nodate' : d.toISOString().slice(0, 10)
     }
     const d = new Date(s)
