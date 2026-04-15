@@ -63,17 +63,22 @@ async function handler(request: NextRequest) {
         `Importing lessons… (${Math.min((chunkIndex + 1) * CHUNK_SIZE, lessons.length)} / ${lessons.length})`
       )
 
-      await prisma.lesson.createMany({
-        data: chunk.map(l => ({
-          id: l.id,
-          lessonType: l.lessonType,
-          lessonContent: l.lessonContent,
-          instructorId: l.instructorId,
-          locationId: l.locationId,
-          ...(l.createdAt ? { createdAt: new Date(l.createdAt) } : {}),
-        })),
-        skipDuplicates: true,
-      })
+      await prisma.$transaction(
+        chunk.map(l => {
+          const lessonData = {
+            lessonType: l.lessonType,
+            lessonContent: l.lessonContent,
+            instructorId: l.instructorId,
+            locationId: l.locationId,
+            ...(l.createdAt ? { createdAt: new Date(l.createdAt) } : {}),
+          }
+          return prisma.lesson.upsert({
+            where: { id: l.id },
+            update: lessonData,
+            create: { id: l.id, ...lessonData },
+          })
+        })
+      )
 
       const isLast = chunkIndex + 1 >= totalChunks
       if (isLast) {
