@@ -180,20 +180,95 @@ export async function POST(request: NextRequest) {
 
     await prisma.importJob.update({ where: { id: job.id }, data: { progress: 24, message: 'Importing customers…' } })
 
-    const uniqueCustomers = new Map<string, { firstName: string; lastName: string; email: string }>()
-    for (const row of rows) {
-      if (!row.customerId || uniqueCustomers.has(row.customerId)) continue
-      const parts = row.customerName.split(/\s+/)
-      uniqueCustomers.set(row.customerId, {
-        firstName: parts[0] || 'Unknown',
-        lastName: parts.slice(1).join(' ') || '',
-        email: `customer_${row.customerId}@imported.local`,
-      })
+    // Customer resolution strategy (source file IDs are unreliable):
+    // 1. Source ID in DB AND name matches → same person, use that ID
+    // 2. Source ID in DB but name differs → ID was recycled; fall back to name lookup
+    // 3. Source ID not in DB → name lookup
+    // 4. Name lookup returns multiple matches → treat as a new distinct customer
+    const sourceIds = [...new Set(rows.map(r => r.customerId))]
+    const [existingById, allExistingCustomers] = await Promise.all([
+      prisma.customer.findMany({
+        where: { id: { in: sourceIds }, deletedAt: null },
+        select: { id: true, firstName: true, lastName: true },
+      }),
+      prisma.customer.findMany({
+        where: { deletedAt: null },
+        select: { id: true, firstName: true, lastName: true },
+      }),
+    ])
+
+    const idToDbCustomer = new Map(existingById.map(c => [c.id, c]))
+    // name → list of DB customers with that name (handles duplicates)
+    const nameToDbList = new Map<string, string[]>()
+    for (const c of allExistingCustomers) {
+      const nk = `${c.firstName}${c.lastName}`.toLowerCase().replace(/\s+/g, '')
+      if (!nameToDbList.has(nk)) nameToDbList.set(nk, [])
+      nameToDbList.get(nk)!.push(c.id)
     }
-    await prisma.customer.createMany({
-      data: [...uniqueCustomers.entries()].map(([id, c]) => ({ id, ...c })),
-      skipDuplicates: true,
-    })
+
+    // Returns the DB customer ID for a given (sourceId, nameKey), or undefined if needs creation
+    const resolveCache = new Map<string, string>()
+    function pickDbId(sourceId: string, nameKey: string): string | undefined {
+      const key = `${sourceId}|${nameKey}`
+      if (resolveCache.has(key)) return resolveCache.get(key)!
+      // Rule 1: source ID exists AND name matches
+      const byId = idToDbCustomer.get(sourceId)
+      if (byId && `${byId.firstName}${byId.lastName}`.toLowerCase().replace(/\s+/g, '') === nameKey) {
+        resolveCache.set(key, sourceId); return sourceId
+      }
+      // Rules 2 & 3: name lookup
+      const matches = nameToDbList.get(nameKey) ?? []
+      if (matches.length === 1) {
+        resolveCache.set(key, matches[0]); return matches[0]
+      }
+      // Rule 4: 0 matches → needs creation; >1 matches → ambiguous, create new to be safe
+      return undefined
+    }
+
+    // Determine which (sourceId, name) pairs need a new customer
+    const toCreate: Array<{ firstName: string; lastName: string; email: string }> = []
+    const seenCreateKeys = new Set<string>()
+    for (const row of rows) {
+      if (!row.customerName.trim()) continue
+      const nameKey = row.customerName.toLowerCase().replace(/\s+/g, '')
+      const createKey = `${row.customerId}|${nameKey}`
+      if (pickDbId(row.customerId, nameKey) === undefined && !seenCreateKeys.has(createKey)) {
+        seenCreateKeys.add(createKey)
+        const parts = row.customerName.split(/\s+/)
+        toCreate.push({
+          firstName: parts[0] || 'Unknown',
+          lastName: parts.slice(1).join(' ') || '',
+          email: `customer_${nameKey}_${row.customerId}@imported.local`,
+        })
+      }
+    }
+    if (toCreate.length > 0) {
+      await prisma.customer.createMany({ data: toCreate, skipDuplicates: true })
+      const newCustomers = await prisma.customer.findMany({
+        where: { OR: toCreate.map(c => ({ firstName: c.firstName, lastName: c.lastName })), deletedAt: null },
+        select: { id: true, firstName: true, lastName: true },
+      })
+      for (const c of newCustomers) {
+        const nk = `${c.firstName}${c.lastName}`.toLowerCase().replace(/\s+/g, '')
+        const list = nameToDbList.get(nk) ?? []
+        if (!list.includes(c.id)) { list.push(c.id); nameToDbList.set(nk, list) }
+        // For newly created customers with an unambiguous name, prime the cache
+        if (list.length === 1) {
+          // Find the source rows that triggered this creation to prime the cache
+          for (const row of rows) {
+            const rowNk = row.customerName.toLowerCase().replace(/\s+/g, '')
+            if (rowNk === nk) resolveCache.set(`${row.customerId}|${nk}`, c.id)
+          }
+        }
+      }
+    }
+
+    // Rewrite every row's customerId to the correct DB ID
+    for (const row of rows) {
+      const nameKey = row.customerName.toLowerCase().replace(/\s+/g, '')
+      const dbId = pickDbId(row.customerId, nameKey)
+      if (dbId) row.customerId = dbId
+    }
 
     // ── 5. Fetch IDs and build lesson + participant data ───────────────────────
     const [instructorRecords, locationRecords] = await Promise.all([
