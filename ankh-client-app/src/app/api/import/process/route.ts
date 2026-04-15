@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@/generated/prisma'
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import { Client } from '@upstash/qstash'
 
@@ -63,22 +64,32 @@ async function handler(request: NextRequest) {
         `Importing lessons… (${Math.min((chunkIndex + 1) * CHUNK_SIZE, lessons.length)} / ${lessons.length})`
       )
 
-      await prisma.$transaction(
-        chunk.map(l => {
-          const lessonData = {
-            lessonType: l.lessonType,
-            lessonContent: l.lessonContent,
-            instructorId: l.instructorId,
-            locationId: l.locationId,
-            ...(l.createdAt ? { createdAt: new Date(l.createdAt) } : {}),
-          }
-          return prisma.lesson.upsert({
-            where: { id: l.id },
-            update: lessonData,
-            create: { id: l.id, ...lessonData },
-          })
-        })
+      // Single bulk upsert — one DB round-trip for the entire chunk
+      const values = Prisma.join(
+        chunk.map(l =>
+          Prisma.sql`(
+            ${l.id},
+            ${l.lessonType},
+            ${l.lessonContent ?? null},
+            ${l.instructorId},
+            ${l.locationId},
+            ${l.createdAt ? new Date(l.createdAt) : new Date()},
+            NOW()
+          )`
+        ),
+        ','
       )
+      await prisma.$executeRaw`
+        INSERT INTO lessons (id, "lessonType", "lessonContent", "instructorId", "locationId", "createdAt", "updatedAt")
+        VALUES ${values}
+        ON CONFLICT (id) DO UPDATE SET
+          "lessonType"    = EXCLUDED."lessonType",
+          "lessonContent" = EXCLUDED."lessonContent",
+          "instructorId"  = EXCLUDED."instructorId",
+          "locationId"    = EXCLUDED."locationId",
+          "createdAt"     = EXCLUDED."createdAt",
+          "updatedAt"     = NOW()
+      `
 
       const isLast = chunkIndex + 1 >= totalChunks
       if (isLast) {
