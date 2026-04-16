@@ -183,10 +183,11 @@ export async function POST(request: NextRequest) {
     // Customer resolution strategy (source file IDs are unreliable):
     // 1. Source ID in DB AND name matches → same person, use that ID
     // 2. Source ID in DB but name differs → ID was recycled; fall back to name lookup
-    // 3. Source ID not in DB, exactly one name match → use that existing customer
-    // 4. No match or ambiguous name → create with a deterministic ID so we always have a valid FK
+    // 3. Name lookup: if 1 match use it; if multiple use the one with the most lesson history
+    //    (picks the canonical record over duplicates created by previous buggy imports)
+    // 4. No name match at all → create a new customer
     const sourceIds = [...new Set(rows.map(r => r.customerId))]
-    const [existingById, allExistingCustomers] = await Promise.all([
+    const [existingById, allExistingCustomers, participantCounts] = await Promise.all([
       prisma.customer.findMany({
         where: { id: { in: sourceIds }, deletedAt: null },
         select: { id: true, firstName: true, lastName: true },
@@ -195,11 +196,17 @@ export async function POST(request: NextRequest) {
         where: { deletedAt: null },
         select: { id: true, firstName: true, lastName: true },
       }),
+      prisma.lessonParticipant.groupBy({
+        by: ['customerId'],
+        _count: { customerId: true },
+      }),
     ])
 
     const idToDbCustomer = new Map(existingById.map(c => [c.id, c]))
     const existingIdSet = new Set(allExistingCustomers.map(c => c.id))
-    // name → list of DB customer IDs with that name
+    const lessonCountByCustomer = new Map(participantCounts.map(p => [p.customerId, p._count.customerId]))
+
+    // name → list of DB customer IDs with that name (may be >1 due to past duplicate imports)
     const nameToDbList = new Map<string, string[]>()
     for (const c of allExistingCustomers) {
       const nk = `${c.firstName}${c.lastName}`.toLowerCase().replace(/\s+/g, '')
@@ -207,8 +214,15 @@ export async function POST(request: NextRequest) {
       nameToDbList.get(nk)!.push(c.id)
     }
 
-    // Always returns a valid DB ID for (sourceId, nameKey).
-    // For new/ambiguous customers, generates a deterministic ID that will be inserted below.
+    // When multiple customers share a name, return the one with the most lesson history.
+    function pickCanonical(ids: string[]): string {
+      return ids.reduce((best, id) =>
+        (lessonCountByCustomer.get(id) ?? 0) >= (lessonCountByCustomer.get(best) ?? 0) ? id : best
+      )
+    }
+
+    // Always returns a valid DB ID. New customers get a deterministic ID (only when name is
+    // completely absent from DB — not for duplicates).
     const resolveCache = new Map<string, string>()
     function pickDbId(sourceId: string, nameKey: string): string {
       const cacheKey = `${sourceId}|${nameKey}`
@@ -219,18 +233,17 @@ export async function POST(request: NextRequest) {
       if (byId && `${byId.firstName}${byId.lastName}`.toLowerCase().replace(/\s+/g, '') === nameKey) {
         result = sourceId
       } else {
-        // Rules 2 & 3: unambiguous name lookup
+        // Rules 2 & 3: name lookup — pick canonical if multiple
         const matches = nameToDbList.get(nameKey) ?? []
-        result = matches.length === 1
-          ? matches[0]
-          // Rule 4: no match or duplicate names → deterministic ID derived from source
-          : `imp_${sourceId}_${nameKey.slice(0, 20)}`
+        result = matches.length >= 1
+          ? pickCanonical(matches)
+          : `imp_${sourceId}_${nameKey.slice(0, 20)}` // Rule 4: genuinely new customer
       }
       resolveCache.set(cacheKey, result)
       return result
     }
 
-    // Collect customers that need to be inserted (those whose resolved ID isn't in the DB yet)
+    // Create customers whose name is completely absent from the DB
     const toCreate: Array<{ id: string; firstName: string; lastName: string; email: string }> = []
     const seenNewIds = new Set<string>()
     for (const row of rows) {
