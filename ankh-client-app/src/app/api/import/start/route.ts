@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@/generated/prisma'
 import { Client } from '@upstash/qstash'
 import bcrypt from 'bcryptjs'
 import * as XLSX from 'xlsx'
@@ -308,15 +309,19 @@ export async function POST(request: NextRequest) {
       row.customerId = dbId
       if (!externalIdUpdates.has(dbId)) externalIdUpdates.set(dbId, sourceId)
     }
-    // Persist externalId on existing customers that don't have one yet
-    await Promise.all(
-      [...externalIdUpdates.entries()].map(([dbId, sourceId]) =>
-        prisma.customer.updateMany({
-          where: { id: dbId, externalId: null },
-          data: { externalId: sourceId },
-        })
+    // Persist externalId on existing customers that don't have one yet — single round-trip
+    if (externalIdUpdates.size > 0) {
+      const values = Prisma.join(
+        [...externalIdUpdates.entries()].map(([dbId, sourceId]) => Prisma.sql`(${dbId}, ${sourceId})`),
+        ','
       )
-    )
+      await prisma.$executeRaw`
+        UPDATE customers
+        SET "externalId" = v.source_id
+        FROM (VALUES ${values}) AS v(db_id, source_id)
+        WHERE customers.id = v.db_id AND customers."externalId" IS NULL
+      `
+    }
 
     // ── 5. Fetch IDs and build lesson + participant data ───────────────────────
     const [instructorRecords, locationRecords] = await Promise.all([
