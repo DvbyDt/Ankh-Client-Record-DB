@@ -46,17 +46,19 @@ model Location {
 }
 
 model Customer {
-  id        String    @id @default(cuid())
-  email     String?   @unique
-  firstName String
-  lastName  String
-  phone     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id         String    @id @default(cuid())
+  externalId String?   // Customer ID as it appears in the source import file
+  email      String?   @unique
+  firstName  String
+  lastName   String
+  phone      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   lessonParticipants LessonParticipant[]
 
+  @@index([externalId])
   @@index([firstName])
   @@index([lastName])
   @@index([deletedAt])

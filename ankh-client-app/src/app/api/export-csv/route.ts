@@ -18,6 +18,7 @@ export async function GET(_request: NextRequest) {
           customer: {
             select: {
               id: true,
+              externalId: true,
               firstName: true,
               lastName: true
             }
@@ -85,7 +86,7 @@ export async function GET(_request: NextRequest) {
         p.lesson.lessonType || '',
         p.customerSymptoms || '',
         initialSymptomMap.get(p.customer.id) || '',
-        p.customer.id,
+        p.customer.externalId ?? p.customer.id,
         p.lesson.id
       ].map(csvEscape).join(',')
     })
