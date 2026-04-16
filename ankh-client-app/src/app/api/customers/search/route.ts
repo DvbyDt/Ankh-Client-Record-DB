@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
           lastName: true,
           email: true,
           phone: true,
+          company: true,
           createdAt: true,
           deletedAt: true,
           lessonParticipants: {

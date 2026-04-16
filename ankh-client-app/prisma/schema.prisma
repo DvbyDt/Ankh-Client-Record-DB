@@ -52,6 +52,7 @@ model Customer {
   firstName  String
   lastName   String
   phone      String?
+  company    String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?

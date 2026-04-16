@@ -9,6 +9,7 @@ const CUSTOMER_LIST_SELECT = {
   lastName: true,
   email: true,
   phone: true,
+  company: true,
   createdAt: true,
   deletedAt: true,
   lessonParticipants: {

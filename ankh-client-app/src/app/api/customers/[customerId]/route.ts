@@ -44,6 +44,7 @@ export async function GET(
         lastName: true,
         email: true,
         phone: true,
+        company: true,
         createdAt: true,
         deletedAt: true,
         lessonParticipants: {
@@ -100,7 +101,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { firstName, lastName, email, phone } = body
+    const { firstName, lastName, email, phone, company } = body
 
     if (!firstName || !lastName) {
       return NextResponse.json(
@@ -119,13 +120,14 @@ export async function PUT(
 
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
-      data: { firstName, lastName, email: email?.trim() || null, phone: phone || null },
+      data: { firstName, lastName, email: email?.trim() || null, phone: phone || null, company: company || null },
       select: {
         id: true,
         firstName: true,
         lastName: true,
         email: true,
         phone: true,
+        company: true,
         createdAt: true,
         deletedAt: true
       }
