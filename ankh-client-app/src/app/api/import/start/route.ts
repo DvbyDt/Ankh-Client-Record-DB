@@ -298,28 +298,36 @@ export async function POST(request: NextRequest) {
       await prisma.customer.createMany({ data: toCreate, skipDuplicates: true })
     }
 
-    // Rewrite every row's customerId to the resolved DB ID (guaranteed to exist)
-    // Also collect which DB customers need their externalId set (first-time mapping)
-    const externalIdUpdates = new Map<string, string>() // dbId → sourceId
+    // Rewrite every row's customerId to the resolved DB ID.
+    // Simultaneously count how often each sourceId maps to each DB customer — the most
+    // common sourceId wins as the externalId (handles stray rows with wrong IDs).
+    const externalIdCounts = new Map<string, Map<string, number>>() // dbId → (sourceId → count)
     for (const row of rows) {
       if (!row.customerName.trim()) continue
       const nameKey = row.customerName.toLowerCase().replace(/\s+/g, '')
       const sourceId = row.customerId
       const dbId = pickDbId(sourceId, nameKey)
       row.customerId = dbId
-      if (!externalIdUpdates.has(dbId)) externalIdUpdates.set(dbId, sourceId)
+      if (!externalIdCounts.has(dbId)) externalIdCounts.set(dbId, new Map())
+      const counts = externalIdCounts.get(dbId)!
+      counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
     }
-    // Persist externalId on existing customers that don't have one yet — single round-trip
-    if (externalIdUpdates.size > 0) {
+    // Pick the most-frequent sourceId per customer and persist — always overwrite so
+    // a re-import with a corrected file fixes previously wrong externalIds.
+    if (externalIdCounts.size > 0) {
+      const externalIdUpdates = [...externalIdCounts.entries()].map(([dbId, counts]) => {
+        const bestSourceId = [...counts.entries()].reduce((a, b) => b[1] > a[1] ? b : a)[0]
+        return [dbId, bestSourceId] as [string, string]
+      })
       const values = Prisma.join(
-        [...externalIdUpdates.entries()].map(([dbId, sourceId]) => Prisma.sql`(${dbId}, ${sourceId})`),
+        externalIdUpdates.map(([dbId, sourceId]) => Prisma.sql`(${dbId}, ${sourceId})`),
         ','
       )
       await prisma.$executeRaw`
         UPDATE customers
         SET "externalId" = v.source_id
         FROM (VALUES ${values}) AS v(db_id, source_id)
-        WHERE customers.id = v.db_id AND customers."externalId" IS NULL
+        WHERE customers.id = v.db_id
       `
     }
 
