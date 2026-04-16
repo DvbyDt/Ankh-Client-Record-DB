@@ -183,8 +183,8 @@ export async function POST(request: NextRequest) {
     // Customer resolution strategy (source file IDs are unreliable):
     // 1. Source ID in DB AND name matches → same person, use that ID
     // 2. Source ID in DB but name differs → ID was recycled; fall back to name lookup
-    // 3. Source ID not in DB → name lookup
-    // 4. Name lookup returns multiple matches → treat as a new distinct customer
+    // 3. Source ID not in DB, exactly one name match → use that existing customer
+    // 4. No match or ambiguous name → create with a deterministic ID so we always have a valid FK
     const sourceIds = [...new Set(rows.map(r => r.customerId))]
     const [existingById, allExistingCustomers] = await Promise.all([
       prisma.customer.findMany({
@@ -198,7 +198,8 @@ export async function POST(request: NextRequest) {
     ])
 
     const idToDbCustomer = new Map(existingById.map(c => [c.id, c]))
-    // name → list of DB customers with that name (handles duplicates)
+    const existingIdSet = new Set(allExistingCustomers.map(c => c.id))
+    // name → list of DB customer IDs with that name
     const nameToDbList = new Map<string, string[]>()
     for (const c of allExistingCustomers) {
       const nk = `${c.firstName}${c.lastName}`.toLowerCase().replace(/\s+/g, '')
@@ -206,68 +207,56 @@ export async function POST(request: NextRequest) {
       nameToDbList.get(nk)!.push(c.id)
     }
 
-    // Returns the DB customer ID for a given (sourceId, nameKey), or undefined if needs creation
+    // Always returns a valid DB ID for (sourceId, nameKey).
+    // For new/ambiguous customers, generates a deterministic ID that will be inserted below.
     const resolveCache = new Map<string, string>()
-    function pickDbId(sourceId: string, nameKey: string): string | undefined {
-      const key = `${sourceId}|${nameKey}`
-      if (resolveCache.has(key)) return resolveCache.get(key)!
-      // Rule 1: source ID exists AND name matches
+    function pickDbId(sourceId: string, nameKey: string): string {
+      const cacheKey = `${sourceId}|${nameKey}`
+      if (resolveCache.has(cacheKey)) return resolveCache.get(cacheKey)!
+      let result: string
+      // Rule 1: exact match on both ID and name
       const byId = idToDbCustomer.get(sourceId)
       if (byId && `${byId.firstName}${byId.lastName}`.toLowerCase().replace(/\s+/g, '') === nameKey) {
-        resolveCache.set(key, sourceId); return sourceId
+        result = sourceId
+      } else {
+        // Rules 2 & 3: unambiguous name lookup
+        const matches = nameToDbList.get(nameKey) ?? []
+        result = matches.length === 1
+          ? matches[0]
+          // Rule 4: no match or duplicate names → deterministic ID derived from source
+          : `imp_${sourceId}_${nameKey.slice(0, 20)}`
       }
-      // Rules 2 & 3: name lookup
-      const matches = nameToDbList.get(nameKey) ?? []
-      if (matches.length === 1) {
-        resolveCache.set(key, matches[0]); return matches[0]
-      }
-      // Rule 4: 0 matches → needs creation; >1 matches → ambiguous, create new to be safe
-      return undefined
+      resolveCache.set(cacheKey, result)
+      return result
     }
 
-    // Determine which (sourceId, name) pairs need a new customer
-    const toCreate: Array<{ firstName: string; lastName: string; email: string }> = []
-    const seenCreateKeys = new Set<string>()
+    // Collect customers that need to be inserted (those whose resolved ID isn't in the DB yet)
+    const toCreate: Array<{ id: string; firstName: string; lastName: string; email: string }> = []
+    const seenNewIds = new Set<string>()
     for (const row of rows) {
       if (!row.customerName.trim()) continue
       const nameKey = row.customerName.toLowerCase().replace(/\s+/g, '')
-      const createKey = `${row.customerId}|${nameKey}`
-      if (pickDbId(row.customerId, nameKey) === undefined && !seenCreateKeys.has(createKey)) {
-        seenCreateKeys.add(createKey)
+      const dbId = pickDbId(row.customerId, nameKey)
+      if (!existingIdSet.has(dbId) && !seenNewIds.has(dbId)) {
+        seenNewIds.add(dbId)
         const parts = row.customerName.split(/\s+/)
         toCreate.push({
+          id: dbId,
           firstName: parts[0] || 'Unknown',
           lastName: parts.slice(1).join(' ') || '',
-          email: `customer_${nameKey}_${row.customerId}@imported.local`,
+          email: `customer_${dbId}@imported.local`,
         })
       }
     }
     if (toCreate.length > 0) {
       await prisma.customer.createMany({ data: toCreate, skipDuplicates: true })
-      const newCustomers = await prisma.customer.findMany({
-        where: { OR: toCreate.map(c => ({ firstName: c.firstName, lastName: c.lastName })), deletedAt: null },
-        select: { id: true, firstName: true, lastName: true },
-      })
-      for (const c of newCustomers) {
-        const nk = `${c.firstName}${c.lastName}`.toLowerCase().replace(/\s+/g, '')
-        const list = nameToDbList.get(nk) ?? []
-        if (!list.includes(c.id)) { list.push(c.id); nameToDbList.set(nk, list) }
-        // For newly created customers with an unambiguous name, prime the cache
-        if (list.length === 1) {
-          // Find the source rows that triggered this creation to prime the cache
-          for (const row of rows) {
-            const rowNk = row.customerName.toLowerCase().replace(/\s+/g, '')
-            if (rowNk === nk) resolveCache.set(`${row.customerId}|${nk}`, c.id)
-          }
-        }
-      }
     }
 
-    // Rewrite every row's customerId to the correct DB ID
+    // Rewrite every row's customerId to the resolved DB ID (guaranteed to exist)
     for (const row of rows) {
+      if (!row.customerName.trim()) continue
       const nameKey = row.customerName.toLowerCase().replace(/\s+/g, '')
-      const dbId = pickDbId(row.customerId, nameKey)
-      if (dbId) row.customerId = dbId
+      row.customerId = pickDbId(row.customerId, nameKey)
     }
 
     // ── 5. Fetch IDs and build lesson + participant data ───────────────────────
