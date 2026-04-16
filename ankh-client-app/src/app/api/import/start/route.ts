@@ -180,14 +180,18 @@ export async function POST(request: NextRequest) {
 
     await prisma.importJob.update({ where: { id: job.id }, data: { progress: 24, message: 'Importing customers…' } })
 
-    // Customer resolution strategy (source file IDs are unreliable):
-    // 1. Source ID in DB AND name matches → same person, use that ID
+    // Customer resolution order:
+    // 0. externalId match + name matches → strongest signal, use that DB customer
+    // 1. Source ID == DB ID AND name matches → direct hit
     // 2. Source ID in DB but name differs → ID was recycled; fall back to name lookup
-    // 3. Name lookup: if 1 match use it; if multiple use the one with the most lesson history
-    //    (picks the canonical record over duplicates created by previous buggy imports)
-    // 4. No name match at all → create a new customer
+    // 3. Name lookup: if ≥1 match, pick the one with the most lesson history (canonical)
+    // 4. No match at all → create a new customer (stores externalId for future imports)
     const sourceIds = [...new Set(rows.map(r => r.customerId))]
-    const [existingById, allExistingCustomers, participantCounts] = await Promise.all([
+    const [existingByExtId, existingById, allExistingCustomers, participantCounts] = await Promise.all([
+      prisma.customer.findMany({
+        where: { externalId: { in: sourceIds }, deletedAt: null },
+        select: { id: true, externalId: true, firstName: true, lastName: true },
+      }),
       prisma.customer.findMany({
         where: { id: { in: sourceIds }, deletedAt: null },
         select: { id: true, firstName: true, lastName: true },
@@ -202,11 +206,13 @@ export async function POST(request: NextRequest) {
       }),
     ])
 
+    // externalId → customer (Rule 0 lookup)
+    const extIdToCustomer = new Map(existingByExtId.map(c => [c.externalId!, c]))
     const idToDbCustomer = new Map(existingById.map(c => [c.id, c]))
     const existingIdSet = new Set(allExistingCustomers.map(c => c.id))
     const lessonCountByCustomer = new Map(participantCounts.map(p => [p.customerId, p._count.customerId]))
 
-    // name → list of DB customer IDs with that name (may be >1 due to past duplicate imports)
+    // name → list of DB customer IDs (may be >1 due to past duplicate imports)
     const nameToDbList = new Map<string, string[]>()
     for (const c of allExistingCustomers) {
       const nk = `${c.firstName}${c.lastName}`.toLowerCase().replace(/\s+/g, '')
@@ -221,30 +227,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Always returns a valid DB ID. New customers get a deterministic ID (only when name is
-    // completely absent from DB — not for duplicates).
     const resolveCache = new Map<string, string>()
     function pickDbId(sourceId: string, nameKey: string): string {
       const cacheKey = `${sourceId}|${nameKey}`
       if (resolveCache.has(cacheKey)) return resolveCache.get(cacheKey)!
       let result: string
-      // Rule 1: exact match on both ID and name
-      const byId = idToDbCustomer.get(sourceId)
-      if (byId && `${byId.firstName}${byId.lastName}`.toLowerCase().replace(/\s+/g, '') === nameKey) {
-        result = sourceId
+      // Rule 0: externalId stored from a previous import — strongest signal
+      const byExt = extIdToCustomer.get(sourceId)
+      if (byExt && `${byExt.firstName}${byExt.lastName}`.toLowerCase().replace(/\s+/g, '') === nameKey) {
+        result = byExt.id
       } else {
-        // Rules 2 & 3: name lookup — pick canonical if multiple
-        const matches = nameToDbList.get(nameKey) ?? []
-        result = matches.length >= 1
-          ? pickCanonical(matches)
-          : `imp_${sourceId}_${nameKey.slice(0, 20)}` // Rule 4: genuinely new customer
+        // Rule 1: DB primary key matches source ID and name agrees
+        const byId = idToDbCustomer.get(sourceId)
+        if (byId && `${byId.firstName}${byId.lastName}`.toLowerCase().replace(/\s+/g, '') === nameKey) {
+          result = sourceId
+        } else {
+          // Rules 2 & 3: name lookup — pick canonical when multiple exist
+          const matches = nameToDbList.get(nameKey) ?? []
+          result = matches.length >= 1
+            ? pickCanonical(matches)
+            : `imp_${sourceId}_${nameKey.slice(0, 20)}` // Rule 4: genuinely new customer
+        }
       }
       resolveCache.set(cacheKey, result)
       return result
     }
 
+    // Clean up imp_ customers created by a previous buggy import run.
+    // Migrate their lesson participants to the canonical customer, then soft-delete them.
+    const impCustomers = allExistingCustomers.filter(c => c.id.startsWith('imp_'))
+    for (const impCust of impCustomers) {
+      const nk = `${impCust.firstName}${impCust.lastName}`.toLowerCase().replace(/\s+/g, '')
+      const nonImpMatches = (nameToDbList.get(nk) ?? []).filter(id => !id.startsWith('imp_'))
+      if (nonImpMatches.length === 0) continue
+      const canonical = pickCanonical(nonImpMatches)
+      const existingOnCanonical = new Set(
+        (await prisma.lessonParticipant.findMany({
+          where: { customerId: canonical },
+          select: { lessonId: true },
+        })).map(p => p.lessonId)
+      )
+      await prisma.lessonParticipant.updateMany({
+        where: { customerId: impCust.id, lessonId: { notIn: [...existingOnCanonical] } },
+        data: { customerId: canonical },
+      })
+      await prisma.customer.update({ where: { id: impCust.id }, data: { deletedAt: new Date() } })
+    }
+
     // Create customers whose name is completely absent from the DB
-    const toCreate: Array<{ id: string; firstName: string; lastName: string; email: string }> = []
+    const toCreate: Array<{ id: string; externalId: string; firstName: string; lastName: string; email: string }> = []
     const seenNewIds = new Set<string>()
     for (const row of rows) {
       if (!row.customerName.trim()) continue
@@ -255,6 +286,7 @@ export async function POST(request: NextRequest) {
         const parts = row.customerName.split(/\s+/)
         toCreate.push({
           id: dbId,
+          externalId: row.customerId,
           firstName: parts[0] || 'Unknown',
           lastName: parts.slice(1).join(' ') || '',
           email: `customer_${dbId}@imported.local`,
@@ -266,11 +298,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Rewrite every row's customerId to the resolved DB ID (guaranteed to exist)
+    // Also collect which DB customers need their externalId set (first-time mapping)
+    const externalIdUpdates = new Map<string, string>() // dbId → sourceId
     for (const row of rows) {
       if (!row.customerName.trim()) continue
       const nameKey = row.customerName.toLowerCase().replace(/\s+/g, '')
-      row.customerId = pickDbId(row.customerId, nameKey)
+      const sourceId = row.customerId
+      const dbId = pickDbId(sourceId, nameKey)
+      row.customerId = dbId
+      if (!externalIdUpdates.has(dbId)) externalIdUpdates.set(dbId, sourceId)
     }
+    // Persist externalId on existing customers that don't have one yet
+    await Promise.all(
+      [...externalIdUpdates.entries()].map(([dbId, sourceId]) =>
+        prisma.customer.updateMany({
+          where: { id: dbId, externalId: null },
+          data: { externalId: sourceId },
+        })
+      )
+    )
 
     // ── 5. Fetch IDs and build lesson + participant data ───────────────────────
     const [instructorRecords, locationRecords] = await Promise.all([
