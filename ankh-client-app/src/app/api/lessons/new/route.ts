@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
                         email: customerData.email,
                         firstName: customerData.firstName,
                         lastName: customerData.lastName,
-                        phone: customerData.phone || null
+                        phone: customerData.phone || null,
+                        company: customerData.company || null
                     }
                 })
             } else if (customerData.id) {
@@ -91,7 +92,8 @@ export async function POST(request: NextRequest) {
                     data: {
                         firstName: customerData.firstName,
                         lastName: customerData.lastName,
-                        phone: customerData.phone || null
+                        phone: customerData.phone || null,
+                        company: customerData.company || null
                     }
                 })
             } else {
@@ -101,7 +103,8 @@ export async function POST(request: NextRequest) {
                     data: {
                         firstName: customerData.firstName,
                         lastName: customerData.lastName,
-                        phone: customerData.phone || null
+                        phone: customerData.phone || null,
+                        company: customerData.company || null
                     }
                 })
             }

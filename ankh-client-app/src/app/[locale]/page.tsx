@@ -49,8 +49,17 @@ interface CustomerLessonParticipant {
 }
 interface Customer {
   id: string; firstName: string; lastName: string; email: string
-  phone?: string; createdAt?: string; deletedAt?: string | null
+  phone?: string; company?: string; createdAt?: string; deletedAt?: string | null
   lessonParticipants?: CustomerLessonParticipant[]
+}
+
+interface InstructorLesson {
+  id: string; lessonType: string; lessonContent?: string; createdAt: string
+  location?: { name: string }
+  lessonParticipants: {
+    id: string; customerSymptoms?: string; customerImprovements?: string; status?: string
+    customer: { id: string; firstName: string; lastName: string; company?: string }
+  }[]
 }
 
 // ─── Tiny UI primitives ───────────────────────────────────────────────────────
@@ -322,7 +331,16 @@ export default function HomePage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [editModal, setEditModal] = useState<Customer | null>(null)
   // Issue 1 & 5: editForm now uses a single 'name' field
-  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', company: '' })
+
+  // ── Instructor search ──
+  const [instrSearchTerm, setInstrSearchTerm] = useState('')
+  const instrDebounced = useDebounce(instrSearchTerm, 400)
+  const [instrResults, setInstrResults] = useState<{ id: string; firstName: string; lastName: string; email: string }[]>([])
+  const [instrLoading, setInstrLoading] = useState(false)
+  const [instrDetailModal, setInstrDetailModal] = useState<{ id: string; firstName: string; lastName: string } | null>(null)
+  const [instrLessons, setInstrLessons] = useState<InstructorLesson[]>([])
+  const [instrLessonsLoading, setInstrLessonsLoading] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
   const [userModal, setUserModal] = useState<User | null>(null)
@@ -371,6 +389,27 @@ export default function HomePage() {
       .finally(() => setSLoading(false))
   }, [debounced, searchPage])
 
+  // ── Instructor search effect ──
+  useEffect(() => {
+    if (instrDebounced.length < 2) { setInstrResults([]); return }
+    setInstrLoading(true)
+    fetch(`/api/instructors/search?name=${encodeURIComponent(instrDebounced)}`)
+      .then(r => r.json())
+      .then(d => setInstrResults(d.instructors || []))
+      .catch(() => setInstrResults([]))
+      .finally(() => setInstrLoading(false))
+  }, [instrDebounced])
+
+  const fetchInstructorLessons = async (instructor: { id: string; firstName: string; lastName: string }) => {
+    setInstrDetailModal(instructor)
+    setInstrLessonsLoading(true)
+    setInstrLessons([])
+    try {
+      const r = await fetch(`/api/instructors/${instructor.id}/lessons`)
+      if (r.ok) { const d = await r.json(); setInstrLessons(d.lessons || []) }
+    } finally { setInstrLessonsLoading(false) }
+  }
+
   // ── Fetchers ──
   const fetchCount = async () => {
     try { const r = await fetch('/api/customers?limit=1'); if (r.ok) { const d = await r.json(); setCustomerCount(d.total ?? null) } } catch {}
@@ -413,7 +452,7 @@ export default function HomePage() {
   // Issue 1: openEdit now sets a single 'name' field
   const openEdit = (c: Customer) => {
     setEditModal(c)
-    setEditForm({ name: formatName(c.firstName, c.lastName), email: c.email, phone: c.phone || '' })
+    setEditForm({ name: formatName(c.firstName, c.lastName), email: c.email, phone: c.phone || '', company: c.company || '' })
     setEditError('')
   }
   const saveEdit = async () => {
@@ -422,7 +461,7 @@ export default function HomePage() {
     setEditLoading(true); setEditError('')
     const token = Cookies.get('jwt-token')
     try {
-      const r = await fetch(`/api/customers/${editModal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ firstName, lastName, email: editForm.email, phone: editForm.phone }) })
+      const r = await fetch(`/api/customers/${editModal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ firstName, lastName, email: editForm.email, phone: editForm.phone, company: editForm.company || null }) })
       if (r.ok) {
         const { customer: u } = await r.json()
         setAllCustomers(p => p.map(c => c.id === u.id ? { ...c, ...u } : c))
@@ -758,6 +797,56 @@ export default function HomePage() {
                 </div>
               )}
 
+              {/* ── MANAGER-only: Customer search + Instructor search + Recent Lessons ── */}
+              {currentUser?.role === 'MANAGER' && (<>
+
+              {/* ── Instructor Search ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-6 pt-5 pb-4">
+                  <p className="text-[13px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Instructor Search</p>
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={instrSearchTerm}
+                      onChange={e => setInstrSearchTerm(e.target.value)}
+                      placeholder="Search instructor by name…"
+                      className="w-full pl-10 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
+                    />
+                    {instrSearchTerm && (
+                      <button onClick={() => { setInstrSearchTerm(''); setInstrResults([]) }} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {instrLoading && <div className="border-t border-gray-50">{[...Array(2)].map((_, i) => <ShimmerRow key={i} />)}</div>}
+                {!instrLoading && instrResults.length > 0 && (
+                  <div className="border-t border-gray-50 divide-y divide-gray-50">
+                    {instrResults.map(instr => (
+                      <button
+                        key={instr.id}
+                        onClick={() => fetchInstructorLessons(instr)}
+                        className="w-full flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <Avatar name={`${instr.firstName} ${instr.lastName}`} color="green" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{formatName(instr.firstName, instr.lastName)}</p>
+                          <p className="text-xs text-gray-400 truncate">{instr.email}</p>
+                        </div>
+                        <span className="text-xs text-blue-600 font-medium flex-shrink-0">View sessions →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!instrLoading && instrDebounced.length >= 2 && instrResults.length === 0 && (
+                  <div className="border-t border-gray-50 px-6 py-8 text-center text-sm text-gray-400">No instructors found.</div>
+                )}
+                {!instrLoading && instrSearchTerm.length > 0 && instrSearchTerm.length < 2 && (
+                  <div className="border-t border-gray-50 px-6 py-4 text-center text-xs text-gray-400">{t('HomePage.typeAtLeast2')}</div>
+                )}
+              </div>
+
               {/* ── Search box ── */}
               <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="px-6 pt-5 pb-4">
@@ -867,6 +956,8 @@ export default function HomePage() {
 
               {/* ── Recent Lessons quick-view ── */}
               <RecentLessons locale={locale} formatName={formatName} onViewCustomer={fetchDetail} />
+
+              </>)}
             </div>
           )}
         </main>
@@ -936,6 +1027,7 @@ export default function HomePage() {
                 {[
                   { label: t('HomePage.email'), value: detailModal.email },
                   ...(appSettings.showCustomerPhone ? [{ label: t('HomePage.phone'), value: detailModal.phone || '—' }] : []),
+                  ...(detailModal.company ? [{ label: 'Company', value: detailModal.company }] : []),
                   { label: t('HomePage.since'), value: oldest?.lesson?.createdAt ? new Date(oldest.lesson.createdAt).toLocaleDateString() : '—' }
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center gap-4 px-4 py-3">
@@ -1109,12 +1201,46 @@ export default function HomePage() {
           <Field label={t('HomePage.name')} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" required />
           <Field label={t('HomePage.email')} type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} required />
           <Field label={t('HomePage.phone')} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder={t('Common.optional')} />
+          <Field label="Company" value={editForm.company} onChange={e => setEditForm({ ...editForm, company: e.target.value })} placeholder={t('Common.optional')} />
           {editError && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3.5 py-2.5 rounded-xl"><AlertCircle className="w-4 h-4 flex-shrink-0" />{editError}</div>}
           <div className="flex gap-2 pt-1">
             <Btn variant="secondary" className="flex-1 justify-center" onClick={() => setEditModal(null)}>{t('Common.cancel')}</Btn>
             <Btn disabled={editLoading} className="flex-1 justify-center" onClick={saveEdit}>{editLoading ? <><Loader2 className="w-4 h-4 animate-spin" />{t('Common.saving')}</> : t('Common.saveChanges')}</Btn>
           </div>
         </div>
+      </ModalShell>
+
+      {/* Instructor sessions */}
+      <ModalShell wide open={!!instrDetailModal} onClose={() => { setInstrDetailModal(null); setInstrLessons([]) }} title={instrDetailModal ? `${formatName(instrDetailModal.firstName, instrDetailModal.lastName)} — Sessions` : ''} subtitle="All sessions taught by this instructor">
+        {instrLessonsLoading ? (
+          <div className="space-y-2.5">{[...Array(4)].map((_, i) => <div key={i} className="border border-gray-100 rounded-xl p-4 animate-pulse"><div className="h-3.5 w-1/3 bg-gray-100 rounded-full mb-2" /><div className="h-3 w-1/2 bg-gray-50 rounded-full" /></div>)}</div>
+        ) : instrLessons.length === 0 ? (
+          <p className="text-sm text-gray-400 py-6 text-center">No sessions found.</p>
+        ) : (
+          <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            {instrLessons.map(lesson => (
+              <div key={lesson.id} className="border border-gray-100 rounded-xl p-4">
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <span className="text-sm font-semibold text-gray-900">{new Date(lesson.createdAt).toLocaleDateString()}</span>
+                  <Badge>{lesson.lessonType}</Badge>
+                  {lesson.location && <Badge variant="blue">{lesson.location.name}</Badge>}
+                  <span className="text-xs text-gray-400 ml-auto">{lesson.lessonParticipants.length} participant{lesson.lessonParticipants.length !== 1 ? 's' : ''}</span>
+                </div>
+                {lesson.lessonParticipants.length > 0 && (
+                  <div className="space-y-1 mt-2 pt-2 border-t border-gray-50">
+                    {lesson.lessonParticipants.map(lp => (
+                      <div key={lp.id} className="flex items-center gap-2 text-xs text-gray-600">
+                        <span className="font-medium text-gray-800">{formatName(lp.customer.firstName, lp.customer.lastName)}</span>
+                        {lp.customer.company && <span className="text-gray-400">· {lp.customer.company}</span>}
+                        {lp.customerSymptoms && <span className="text-gray-400 truncate max-w-xs">· {lp.customerSymptoms}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </ModalShell>
 
       {/* User info */}

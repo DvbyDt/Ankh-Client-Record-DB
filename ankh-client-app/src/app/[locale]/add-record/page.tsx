@@ -37,6 +37,7 @@ interface Customer {
   lastName: string
   email: string
   phone?: string
+  company?: string
   lessonParticipants?: {
     lesson: {
       id: string
@@ -56,6 +57,7 @@ interface CustomerFormData {
   firstName: string  // Split before submit
   lastName: string   // Split before submit
   phone?: string
+  company?: string
   symptoms: string
   improvements: string
   feedback: string
@@ -107,7 +109,7 @@ export default function AddRecordPage() {
     locationId: '',
     lessonType: 'Group',
     lessonDate: '',
-    customers: [{ name: '', firstName: '', lastName: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
+    customers: [{ name: '', firstName: '', lastName: '', phone: '', company: '', symptoms: '', improvements: '', feedback: '' }]
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -207,6 +209,7 @@ export default function AddRecordPage() {
         firstName: customer.firstName,
         lastName: customer.lastName,
         phone: customer.phone || '',
+        company: customer.company || '',
         symptoms: '',
         improvements: '',
         feedback: ''
@@ -286,7 +289,7 @@ export default function AddRecordPage() {
     // For existing customer flow, additional rows are new customers (editable)
     setLessonForm({
       ...lessonForm,
-      customers: [...lessonForm.customers, { name: '', firstName: '', lastName: '', phone: '', symptoms: '', improvements: '', feedback: '' }]
+      customers: [...lessonForm.customers, { name: '', firstName: '', lastName: '', phone: '', company: '', symptoms: '', improvements: '', feedback: '' }]
     })
   }
 
@@ -743,6 +746,15 @@ export default function AddRecordPage() {
                                 onChange={(e) => updateCustomerField(index, 'phone', e.target.value)}
                                 disabled={isDisabled}
                                 placeholder={t('AddRecord.placeholderPhone')}
+                              />
+                            </div>
+                            <div>
+                              <Label className="mb-2 block">Company</Label>
+                              <Input
+                                value={customer.company || ''}
+                                onChange={(e) => updateCustomerField(index, 'company', e.target.value)}
+                                disabled={isDisabled}
+                                placeholder="Optional"
                               />
                             </div>
                           </div>
