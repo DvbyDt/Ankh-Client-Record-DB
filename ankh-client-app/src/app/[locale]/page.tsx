@@ -746,9 +746,14 @@ export default function HomePage() {
                             <span className="text-xs text-gray-400 hidden sm:block font-mono">{u.username}</span>
                             <Badge variant={u.role === 'MANAGER' ? 'blue' : 'green'}>{u.role}</Badge>
                             <span className="text-xs text-gray-400 hidden lg:block">{new Date(u.createdAt || '').toLocaleDateString()}</span>
-                            <button onClick={() => deleteUser(u.id, formatName(u.firstName, u.lastName))} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors sm:opacity-0 sm:group-hover:opacity-100">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => fetchInstructorLessons(u)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="View sessions">
+                                <BookOpen className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => deleteUser(u.id, formatName(u.firstName, u.lastName))} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete user">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                     </div>
