@@ -1030,9 +1030,8 @@ export default function HomePage() {
             <div className="space-y-5">
               <div className="rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
                 {[
-                  { label: t('HomePage.email'), value: detailModal.email },
+                  { label: 'Company', value: detailModal.company || '—' },
                   ...(appSettings.showCustomerPhone ? [{ label: t('HomePage.phone'), value: detailModal.phone || '—' }] : []),
-                  ...(detailModal.company ? [{ label: 'Company', value: detailModal.company }] : []),
                   { label: t('HomePage.since'), value: oldest?.lesson?.createdAt ? new Date(oldest.lesson.createdAt).toLocaleDateString() : '—' }
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center gap-4 px-4 py-3">
