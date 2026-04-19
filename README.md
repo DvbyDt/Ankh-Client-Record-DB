@@ -1565,7 +1565,6 @@ React maintains a virtual DOM and computes the minimal set of DOM operations nee
 **Why no API errors in the logs?** The crash happens entirely in the browser's render layer after the API response has already been received and rendered. The server is healthy — this is a pure client-side DOM corruption issue.
 
 #### Fix
-
 Three changes, each addressing a different layer of the problem:
 
 **1. `translate="no"` on `<html>` — primary fix**
