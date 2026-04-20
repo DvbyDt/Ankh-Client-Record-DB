@@ -1,13 +1,13 @@
 # Ankh Client Record Database
 
-A production-grade, multi-language client management system for healthcare and wellness professionals. Built for studios that need to record sessions, track customer symptoms and improvements over time, manage a team of instructors across multiple locations, and bulk-import years of historical Excel data.
+A production-grade, multi-language client management system for wellness studios and healthcare professionals. Built for teams that need to record sessions, track customer symptoms and improvements over time, manage instructors across multiple locations, and bulk-import years of historical Excel data.
 
 **Live:** https://ankh-client-record-db.vercel.app  
 **Repo:** https://github.com/DvbyDt/Ankh-Client-Record-DB
 
-[![Next.js](https://img.shields.io/badge/Next.js-15.5-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-16.2-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://typescriptlang.org)
-[![Prisma](https://img.shields.io/badge/Prisma-6.19-2D3748?style=flat-square&logo=prisma)](https://prisma.io)
+[![Prisma](https://img.shields.io/badge/Prisma-6.16-2D3748?style=flat-square&logo=prisma)](https://prisma.io)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-336791?style=flat-square&logo=postgresql)](https://supabase.com)
 [![Vercel](https://img.shields.io/badge/Deployed-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com)
 
@@ -17,26 +17,24 @@ A production-grade, multi-language client management system for healthcare and w
 
 1. [Project Overview](#1-project-overview)
 2. [High-Level Architecture](#2-high-level-architecture)
-3. [Tech Stack & Why Each Tool Was Chosen](#3-tech-stack--why-each-tool-was-chosen)
+3. [Tech Stack](#3-tech-stack)
 4. [Project Structure](#4-project-structure)
-5. [Database Architecture](#5-database-architecture)
+5. [Database Schema](#5-database-schema)
 6. [API Reference](#6-api-reference)
 7. [Authentication & Authorization](#7-authentication--authorization)
 8. [Frontend Architecture](#8-frontend-architecture)
-9. [Internationalization i18n](#9-internationalization-i18n)
-10. [The Import Pipeline — A System Design Story](#10-the-import-pipeline--a-system-design-story)
+9. [Internationalization](#9-internationalization)
+10. [Bulk Import Pipeline](#10-bulk-import-pipeline)
 11. [CSV Export](#11-csv-export)
 12. [Performance Optimizations](#12-performance-optimizations)
 13. [Environment Variables](#13-environment-variables)
-14. [Local Development Setup](#14-local-development-setup)
+14. [Local Development](#14-local-development)
 15. [Database Migrations](#15-database-migrations)
-16. [Deployment Vercel + Supabase](#16-deployment-vercel--supabase)
+16. [Deployment](#16-deployment)
 17. [Role-Based Access Control](#17-role-based-access-control)
-18. [Error Handling Strategy](#18-error-handling-strategy)
-19. [Scalability Analysis](#19-scalability-analysis)
-20. [Adding New Features](#20-adding-new-features)
-21. [Common Issues & Fixes](#21-common-issues--fixes)
-22. [Debug Diaries — Bugs, Root Causes & Fixes](#22-debug-diaries--bugs-root-causes--fixes)
+18. [Error Handling](#18-error-handling)
+19. [Common Issues & Fixes](#19-common-issues--fixes)
+20. [Debug Diaries](#20-debug-diaries)
 
 ---
 
@@ -44,32 +42,33 @@ A production-grade, multi-language client management system for healthcare and w
 
 ### What it does
 
-- **Lesson Recording** — Log individual or group sessions with instructor, location, lesson type, and content notes
-- **Health Tracking** — Record customer symptoms and improvements at each session to track progress over time
-- **Customer Management** — Search, view, edit, and soft-delete customer profiles with full lesson history
-- **User Management** — Managers can create instructor accounts, assign roles, and search/edit users
-- **Location Management** — Create and manage training venue records
-- **Bulk Import** — Upload Excel or CSV files with thousands of rows via asynchronous background processing with live progress tracking
+- **Lesson Recording** — Log sessions with instructor, location, lesson type, content notes, and date
+- **Health Tracking** — Record customer symptoms and improvements at each session
+- **Customer Management** — Search, view full history, edit profiles, and soft-delete records
+- **User Management** — Managers create and manage instructor/manager accounts
+- **Location Management** — Create and assign training venues to sessions
+- **Bulk Import** — Upload Excel or CSV files via async background processing with live progress
 - **CSV Export** — Download all customer and lesson data as a structured spreadsheet
-- **Bilingual UI** — Full English and Korean language support with locale-aware name formatting
+- **Bilingual UI** — Full English and Korean support with locale-aware name formatting
 
 ### Who uses it
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        USERS                                │
+│                          ROLES                              │
 ├───────────────────────────┬─────────────────────────────────┤
 │         MANAGER           │          INSTRUCTOR             │
 ├───────────────────────────┼─────────────────────────────────┤
 │  ✅ Search customers      │  ✅ Search customers            │
 │  ✅ View lesson history   │  ✅ View lesson history         │
 │  ✅ Add lesson records    │  ✅ Add lesson records          │
-│  ✅ Export CSV            │  ✅ Export CSV                  │
+│  ✅ Export CSV            │  ✅ Export CSV (configurable)   │
 │  ✅ Edit/delete customers │  ❌ Edit/delete customers       │
 │  ✅ Bulk import Excel     │  ❌ Bulk import Excel           │
 │  ✅ Create/delete users   │  ❌ Create/delete users         │
 │  ✅ View all users        │  ❌ View all users              │
 │  ✅ Add locations         │  ❌ Add locations               │
+│  ✅ Access settings       │  ❌ Access settings             │
 └───────────────────────────┴─────────────────────────────────┘
 ```
 
@@ -77,182 +76,104 @@ A production-grade, multi-language client management system for healthcare and w
 
 ## 2. High-Level Architecture
 
-### System Overview
-
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          USER'S BROWSER                             │
-│                                                                     │
-│   ┌──────────────────────────────────────────────────────────────┐  │
-│   │              React UI (Next.js App Router)                   │  │
-│   │                                                              │  │
-│   │   /en/          /en/add-record      /en/manage-users         │  │
-│   │  Dashboard       Lesson Form         User Search             │  │
-│   └──────────────────────────┬───────────────────────────────────┘  │
-│                               │ HTTP Requests                       │
-└───────────────────────────────┼─────────────────────────────────────┘
-                                │
-                                ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│                    VERCEL EDGE NETWORK (CDN)                          │
-│         Static assets · Edge-cached API responses                    │
-└────────────────────────────────┬──────────────────────────────────────┘
-                                 │
-                                 ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│                  VERCEL SERVERLESS FUNCTIONS                          │
-│                                                                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │
-│  │  /api/auth   │  │ /api/customers│  │   /api/import/           │   │
-│  │  /api/users  │  │ /api/lessons  │  │   start · process · status│  │
-│  │  /api/locations│ /api/export-csv│  │   (QStash pipeline)      │   │
-│  └──────────────┘  └──────────────┘  └──────────────────────────┘   │
-│                                                                       │
-│              All routes verified via JWT middleware                   │
-└────────────────────────────────┬──────────────────────────────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │                         │
-                    ▼                         ▼
-┌───────────────────────────┐   ┌─────────────────────────────────┐
-│   UPSTASH QSTASH (EU)     │   │  SUPABASE PGBOUNCER (port 6543) │
-│                           │   │                                 │
-│  Message Queue            │   │  Connection Pool (~20 conns)    │
-│  Automatic retries        │   │  Queues requests under load     │
-│  Calls /api/import/process│   │                                 │
-└───────────────────────────┘   └────────────────┬────────────────┘
-                                                  │
-                                                  ▼
-                                 ┌────────────────────────────────┐
-                                 │  SUPABASE POSTGRESQL           │
-                                 │  AWS ap-northeast-2 (Seoul)    │
-                                 │                                │
-                                 │  users · customers · lessons   │
-                                 │  lesson_participants · locations│
-                                 │  import_jobs                   │
-                                 └────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                       USER'S BROWSER                         │
+│                                                              │
+│   ┌─────────────────────────────────────────────────────┐    │
+│   │           React UI  (Next.js App Router)            │    │
+│   │                                                     │    │
+│   │   /en/          /en/add-record    /en/manage-users  │    │
+│   │  Dashboard       Lesson Form       User Search      │    │
+│   └───────────────────────┬─────────────────────────────┘    │
+│                           │ HTTP + JWT                       │
+└───────────────────────────┼──────────────────────────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  VERCEL SERVERLESS FUNCTIONS                  │
+│                                                              │
+│  /api/auth   /api/customers   /api/lessons   /api/import/*  │
+│                                                              │
+│          All routes verified via JWT middleware              │
+└───────────────────────────┬──────────────────────────────────┘
+                            │
+               ┌────────────┴────────────┐
+               ▼                         ▼
+┌─────────────────────────┐   ┌──────────────────────────────┐
+│   UPSTASH QSTASH        │   │  SUPABASE PGBOUNCER (6543)   │
+│                         │   │                              │
+│  HTTP message queue     │   │  Connection pool (~20 conns) │
+│  Async import chunks    │   │  Serverless-safe pooling     │
+│  Auto-retries on fail   │   └──────────────┬───────────────┘
+└─────────────────────────┘                  │
+                                             ▼
+                              ┌──────────────────────────────┐
+                              │  SUPABASE POSTGRESQL          │
+                              │  (AWS ap-northeast-2 Seoul)  │
+                              │                              │
+                              │  users · customers · lessons │
+                              │  lesson_participants          │
+                              │  locations · import_jobs      │
+                              └──────────────────────────────┘
 ```
 
 ### Request Lifecycle
 
 ```
-Browser                 Vercel                  Database
-  │                       │                        │
-  │─── GET /en/page ──────►│                        │
-  │◄── HTML + JS ──────────│                        │
-  │                       │                        │
-  │─── POST /api/auth/login►│                        │
-  │                       │── SELECT user ─────────►│
-  │                       │◄── { hash, role } ──────│
-  │                       │   bcrypt.compare()       │
-  │                       │   jwt.sign()             │
-  │◄── { token, user } ───│                        │
-  │  cookie: jwt-token    │                        │
-  │                       │                        │
-  │─── GET /api/customers ►│                        │
-  │   Authorization: Bearer│                        │
-  │                       │   jwt.verify(token)     │
-  │                       │── SELECT customers ────►│
-  │                       │◄── rows ────────────────│
-  │◄── { customers } ─────│                        │
+Browser                  Vercel                   Database
+  │                        │                         │
+  │─── POST /api/auth ──────►│                         │
+  │                        │── SELECT user ──────────►│
+  │                        │◄── { hash, role } ────────│
+  │                        │   bcrypt.compare()        │
+  │                        │   jwt.sign()              │
+  │◄── { token, user } ────│                         │
+  │  cookie: jwt-token     │                         │
+  │                        │                         │
+  │─── GET /api/customers ──►│                         │
+  │   Authorization: Bearer │   jwt.verify(token)     │
+  │                        │── SELECT customers ─────►│
+  │◄── { customers } ───────│◄── rows ─────────────────│
 ```
 
 ---
 
-## 3. Tech Stack & Why Each Tool Was Chosen
+## 3. Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Framework | Next.js 16 (App Router, Turbopack) | Full-stack — frontend + API routes in one deployment |
+| Language | TypeScript 5 (strict mode) | Type safety across client, server, and DB layer |
+| Styling | Tailwind CSS 4 | Utility-first styling without a separate design system |
+| UI Components | shadcn/ui + Radix UI | Accessible, unstyled primitives (used on add-record page only — see §8) |
+| Icons | Lucide React | Consistent icon set |
+| ORM | Prisma 6 | Type-safe queries, migration system, generated client |
+| Database | PostgreSQL via Supabase | Managed Postgres with connection pooler for serverless |
+| Auth | JWT (`jsonwebtoken`) + `bcryptjs` | Stateless — correct for serverless where there is no session store |
+| Forms | React Hook Form 7 + Zod 4 | Form state management + schema validation |
+| i18n | next-intl 4 | URL-based locale routing, EN + KO |
+| Async Jobs | Upstash QStash | HTTP message queue for background import processing |
+| File Parsing | SheetJS (XLSX) + PapaParse | Excel and CSV reading |
+| Deployment | Vercel | Serverless, auto-deploy from GitHub |
+
+### Why Two Connection URLs (Supabase)
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         TECH STACK MAP                              │
-├─────────────────┬───────────────────────────────────────────────────┤
-│  LAYER          │  TECHNOLOGY                                        │
-├─────────────────┼───────────────────────────────────────────────────┤
-│  Framework      │  Next.js 15 (App Router)                          │
-│  Language       │  TypeScript 5                                      │
-│  Styling        │  Tailwind CSS v4                                   │
-│  UI Components  │  shadcn/ui + Radix UI (add-record page only)      │
-│  Icons          │  Lucide React                                      │
-├─────────────────┼───────────────────────────────────────────────────┤
-│  ORM            │  Prisma 6.19                                       │
-│  Database       │  PostgreSQL via Supabase                           │
-│  Auth           │  JWT (jsonwebtoken) + bcryptjs                     │
-│  File Parsing   │  SheetJS (xlsx)                                    │
-│  Cookies        │  js-cookie                                         │
-├─────────────────┼───────────────────────────────────────────────────┤
-│  i18n           │  next-intl (EN + KO)                               │
-│  Background Jobs│  QStash by Upstash                                 │
-│  Deployment     │  Vercel Hobby                                      │
-│  Database Host  │  Supabase (AWS Seoul)                              │
-└─────────────────┴───────────────────────────────────────────────────┘
-```
-
-### Next.js 15 (App Router)
-
-Next.js was chosen because it provides both the frontend React UI and the backend API routes in one unified project — no separate Express server, no CORS configuration, and a single deployment unit. The App Router allows server components, streaming, and file-based routing for API endpoints.
-
-**What it gives us:**
-- `src/app/api/**` folders become API endpoints automatically
-- `src/app/[locale]/page.tsx` becomes the main page at `/en` and `/ko`
-- Built-in TypeScript support, image optimization, and bundle splitting
-
-### TypeScript
-
-The entire codebase is TypeScript. With a data model involving customers, lessons, participants, users, and locations all referencing each other via foreign keys, type safety prevents entire classes of bugs at compile time — passing a `customerId` where a `lessonId` was expected, for example. Prisma's generated client is fully typed, so database query results come back with known shapes.
-
-### Prisma ORM
-
-Prisma sits between the application code and PostgreSQL. All queries are written in TypeScript using Prisma's query builder:
-
-- **Type-safe queries** — Every `findMany`, `create`, and `update` call has fully typed inputs and outputs
-- **Migration system** — Schema changes tracked in migration files so the database evolves safely
-- **Relation handling** — Deeply nested includes expressed cleanly without manual JOINs
-- **`createMany` for bulk ops** — The import pipeline uses `createMany` with `skipDuplicates: true` to bulk-insert thousands of rows in a single SQL statement
-
-The Prisma client is imported via a singleton in `src/lib/prisma.ts` to prevent multiple instances during hot-reload:
-
-```typescript
-// src/lib/prisma.ts — singleton pattern
-import { PrismaClient } from '@/generated/prisma'
-
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-})
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
-```
-
-The singleton pattern is critical because in Next.js development, hot-module replacement would otherwise create a new `PrismaClient` on every file change, exhausting the database connection pool.
-
-### PostgreSQL via Supabase
-
-```
-┌─────────────────────────────────────────────────────────┐
-│              TWO CONNECTION URLS — WHY                  │
-├──────────────────────────┬──────────────────────────────┤
+┌──────────────────────────┬──────────────────────────────┐
 │   DATABASE_URL           │   DIRECT_URL                 │
 │   port 6543              │   port 5432                  │
 │   PgBouncer pooled       │   Direct to Postgres         │
 ├──────────────────────────┼──────────────────────────────┤
-│  Used by: App at runtime │  Used by: Prisma CLI only    │
+│  Used at runtime         │  Used by Prisma CLI only     │
 │                          │                              │
-│  Why: Vercel serverless  │  Why: PgBouncer doesn't      │
-│  functions spin up/down  │  support DDL statements      │
-│  rapidly. Without pool   │  (CREATE TABLE, ALTER, etc.) │
-│  they'd exhaust the DB's │  that migrations require     │
-│  100 connection limit    │                              │
-│  in seconds under load   │                              │
+│  Vercel serverless fns   │  PgBouncer doesn't support   │
+│  spin up/down rapidly.   │  DDL statements (CREATE,     │
+│  Without pooling they    │  ALTER) that migrations need │
+│  exhaust the DB's 100    │                              │
+│  connection limit        │                              │
 └──────────────────────────┴──────────────────────────────┘
 ```
-
-### QStash by Upstash
-
-QStash is an HTTP-based serverless message queue — the backbone of the bulk import pipeline. It solves the 60-second Vercel function timeout constraint. Full explanation in [Section 10](#10-the-import-pipeline--a-system-design-story).
-
-### JWT + bcryptjs
-
-Authentication uses stateless JSON Web Tokens. On serverless infrastructure (Vercel) there is no persistent in-memory session store, so JWT is the correct choice — each API route verifies the token independently with no database lookup.
-
-Passwords are hashed with `bcryptjs` at 10–12 salt rounds. bcryptjs is a pure-JavaScript implementation with no native bindings — important for Vercel's serverless environment.
 
 ---
 
@@ -265,65 +186,71 @@ ankh-client-app/
 │   ├── app/
 │   │   ├── [locale]/                        # /en and /ko routes
 │   │   │   ├── layout.tsx                   # NextIntlClientProvider wrapper
-│   │   │   ├── page.tsx                     # Main dashboard
-│   │   │   ├── globals.css                  # Tailwind base + CSS variables
+│   │   │   ├── page.tsx                     # Main dashboard (~1,300 lines)
 │   │   │   ├── add-record/page.tsx          # Multi-step lesson form
-│   │   │   └── manage-users/page.tsx        # User search & edit (managers)
+│   │   │   ├── manage-users/page.tsx        # User search & management
+│   │   │   └── settings/page.tsx            # App settings (MANAGER only)
 │   │   │
 │   │   ├── api/
 │   │   │   ├── auth/login/route.ts          # POST — credentials → JWT
 │   │   │   ├── customers/
 │   │   │   │   ├── route.ts                 # GET paginated list
-│   │   │   │   ├── search/route.ts          # GET ?name= full-text search
+│   │   │   │   ├── search/route.ts          # GET ?name= search
 │   │   │   │   └── [customerId]/route.ts    # GET / PUT / DELETE (soft)
 │   │   │   ├── lessons/
 │   │   │   │   ├── new/route.ts             # POST — lesson + participants
 │   │   │   │   ├── recent/route.ts          # GET — dashboard feed
 │   │   │   │   └── [lessonId]/participants/
-│   │   │   │       └── [customerId]/route.ts # DELETE participant
+│   │   │   │       └── [customerId]/route.ts # PUT symptoms / DELETE
 │   │   │   ├── users/
 │   │   │   │   ├── route.ts                 # GET all / POST create
 │   │   │   │   ├── [userId]/route.ts        # PUT / DELETE
-│   │   │   │   ├── instructors/route.ts     # GET instructors (dropdowns)
+│   │   │   │   ├── instructors/route.ts     # GET INSTRUCTOR-role users
 │   │   │   │   └── search/route.ts          # GET ?name=
+│   │   │   ├── instructors/
+│   │   │   │   ├── search/route.ts          # GET ?name=
+│   │   │   │   └── [id]/lessons/route.ts    # GET instructor lesson history
 │   │   │   ├── locations/route.ts           # GET all / POST create
 │   │   │   ├── import/
-│   │   │   │   ├── start/route.ts           # POST — parse + queue
+│   │   │   │   ├── start/route.ts           # POST — parse file, queue job
 │   │   │   │   ├── process/route.ts         # POST — QStash worker
 │   │   │   │   └── status/[jobId]/route.ts  # GET — poll progress
-│   │   │   ├── export-csv/route.ts          # GET — stream CSV download
-│   │   │   └── health/db/route.ts           # GET — DB health check
+│   │   │   ├── export-csv/route.ts          # GET — download all as CSV
+│   │   │   ├── settings/route.ts            # GET / POST app settings
+│   │   │   └── health/db/route.ts           # GET — DB connectivity check
 │   │   │
-│   │   ├── page.tsx                         # Root → redirect /en
+│   │   ├── page.tsx                         # Root → redirect to /en
 │   │   └── layout.tsx                       # Root HTML shell
 │   │
 │   ├── components/
-│   │   ├── LanguageSwitcher.tsx             # EN / 한국어 dropdown
-│   │   ├── UploadModal.tsx                  # File picker + progress bar
-│   │   └── ui/                              # shadcn/ui (add-record only)
+│   │   ├── LanguageSwitcher.tsx             # EN / 한국어 toggle
+│   │   ├── UploadModal.tsx                  # File picker + live progress bar
+│   │   └── ui/                              # shadcn/ui primitives
 │   │       └── button, card, dialog, input, label, select, textarea
 │   │
-│   ├── lib/prisma.ts                        # Prisma singleton
+│   ├── lib/
+│   │   └── prisma.ts                        # Singleton Prisma client
 │   ├── generated/prisma/                    # Auto-generated — do not edit
-│   └── i18n.ts                              # next-intl config
+│   └── i18n.ts                              # next-intl configuration
 │
 ├── prisma/
-│   ├── schema.prisma                        # Source of truth for DB
+│   ├── schema.prisma                        # Source of truth for the DB
 │   ├── seed.ts                              # Creates first manager account
-│   └── migrations/                          # SQL migration history (git tracked)
+│   └── migrations/                          # SQL history (git-tracked)
 │
 ├── messages/
-│   ├── en.json                              # English strings
-│   └── ko.json                              # Korean strings
+│   ├── en.json                              # English translation strings
+│   └── ko.json                              # Korean translation strings
 │
-├── middleware.ts                            # Locale routing
-├── next.config.ts                           # next-intl plugin
-└── .env.local                               # Secrets — never commit
+├── middleware.ts                            # Locale detection & routing
+├── next.config.ts                           # next-intl plugin config
+├── tsconfig.json                            # TypeScript strict config
+└── components.json                          # shadcn/ui configuration
 ```
 
 ---
 
-## 5. Database Architecture
+## 5. Database Schema
 
 ### Entity Relationship Diagram
 
@@ -337,131 +264,143 @@ ankh-client-app/
 │ role       Enum      │          │ updatedAt  DateTime  │
 │  MANAGER|INSTRUCTOR  │          └──────────┬───────────┘
 │ firstName  String    │                     │ 1
-│ lastName   String    │                     │
-│ email      String UQ │                     │ N
-│ createdAt  DateTime  │          ┌──────────▼───────────┐
-│ updatedAt  DateTime  │          │       lessons         │
-└─────────┬────────────┘          ├──────────────────────┤
-          │ 1                     │ id           CUID PK │
-          │                       │ lessonType   String  │
-          │ N                     │  Group|Individual    │
-          └───────────────────────► instructorId FK→User │
-                                  │ locationId   FK→Loc  │
-                                  │ lessonContent String?│
+│ lastName   String    │                     │ N
+│ email      String UQ │          ┌──────────▼───────────┐
+│ isActive   Boolean   │          │       lessons         │
+│ createdAt  DateTime  │          ├──────────────────────┤
+│ updatedAt  DateTime  │          │ id           CUID PK │
+└─────────┬────────────┘          │ lessonType   String  │
+          │ 1                     │ lessonContent String?│
+          │ N                     │ instructorId FK→User │
+          └───────────────────────► locationId   FK→Loc  │
                                   │ createdAt    DateTime│
-                                  │ updatedAt    DateTime│
                                   └──────────┬───────────┘
                                              │ 1
                                              │ N
 ┌──────────────────────┐          ┌──────────▼───────────┐
 │      customers       │          │  lesson_participants  │
 ├──────────────────────┤          ├──────────────────────┤
-│ id         CUID  PK  │◄─────────┤ id           CUID PK │
-│ firstName  String    │    N     │ customerId   FK→Cust │
-│ lastName   String    │          │ lessonId     FK→Less │
-│ email      String UQ │          │ customerSymptoms  ?  │
-│ phone      String?   │          │ customerImprovements?│
-│ createdAt  DateTime  │          │ status       String  │
-│ updatedAt  DateTime  │          │  attended|absent     │
-│ deletedAt  DateTime? │          │ createdAt    DateTime│
-└──────────────────────┘          │ UNIQUE(customerId,   │
-                                  │        lessonId)     │
-                                  └──────────────────────┘
+│ id         CUID  PK  │◄─────────┤ customerId   FK→Cust │
+│ externalId String?   │    N     │ lessonId     FK→Less │
+│ firstName  String    │          │ customerSymptoms  ?  │
+│ lastName   String    │          │ customerImprovements?│
+│ email      String?   │          │ status       String  │
+│ phone      String?   │          │ createdAt    DateTime│
+│ company    String?   │          │ UNIQUE(customerId,   │
+│ createdAt  DateTime  │          │        lessonId)     │
+│ updatedAt  DateTime  │          └──────────────────────┘
+│ deletedAt  DateTime? │
+└──────────────────────┘
 
-┌──────────────────────────────────────────────┐
-│              import_jobs                      │
-├──────────────────────────────────────────────┤
-│ id         CUID  PK                          │
-│ status     String  queued|processing|        │
-│                    complete|failed           │
-│ progress   Int     0–100                     │
-│ message    String                            │
-│ totalRows  Int                               │
-│ rowErrors  Json    skipped row details       │
-│ rowsJson   String? pre-resolved bulk data    │
-│                    (cleared after import)    │
-│ createdAt  DateTime                          │
-│ updatedAt  DateTime                          │
-└──────────────────────────────────────────────┘
+┌──────────────────────┐          ┌──────────────────────┐
+│  lesson_instructors  │          │     import_jobs       │
+├──────────────────────┤          ├──────────────────────┤
+│ id         CUID  PK  │          │ id         CUID  PK  │
+│ lessonId   FK→Less   │          │ status     String    │
+│ userId     FK→User   │          │  queued|processing   │
+│ UNIQUE(lessonId,     │          │  complete|failed     │
+│         userId)      │          │ progress   Int 0–100 │
+└──────────────────────┘          │ message    String    │
+                                  │ totalRows  Int       │
+┌──────────────────────┐          │ rowErrors  Json      │
+│     app_settings     │          │ rowsJson   String?   │
+├──────────────────────┤          │ createdAt  DateTime  │
+│ id       "singleton" │          │ updatedAt  DateTime  │
+│ settings Json        │          └──────────────────────┘
+└──────────────────────┘
 ```
 
-### Why This Schema Design
+### Schema Design Decisions
 
-**CUID primary keys** instead of auto-incrementing integers: CUIDs are collision-resistant, URL-safe, and do not expose the total record count. Incrementing IDs like `/customers/1`, `/customers/2` allow anyone to enumerate all records.
+**CUID primary keys** — collision-resistant, URL-safe, and do not expose record counts. Auto-increment IDs like `/customers/1` allow anyone to enumerate all records by incrementing the ID.
 
-**`LessonParticipant` as explicit join table**: A lesson can have multiple customers, and a customer can attend many lessons. Attendance carries its own data — symptoms at that session, improvements noted, status. This data cannot live on either `Customer` or `Lesson`; it exists only in the context of one customer at one lesson.
+**`LessonParticipant` as explicit join table** — attendance carries its own data (symptoms, improvements, status) that cannot live on either `Customer` or `Lesson`. It only exists in the context of one customer at one session.
 
-**Soft delete on `Customer`** (`deletedAt DateTime?`): Sets `deletedAt` to now rather than removing the row. Historical lesson records remain intact. All queries filter `WHERE "deletedAt" IS NULL`.
+**Soft delete on `Customer`** (`deletedAt DateTime?`) — sets a timestamp instead of removing the row, preserving all historical lesson records. All queries filter `WHERE "deletedAt" IS NULL`.
 
-**`createdAt` doubles as lesson date**: The `Lesson.createdAt` stores the actual lesson date. During import, the parsed lesson date from the spreadsheet is passed as the `createdAt` value. Simpler schema, one timestamp instead of two.
+**`createdAt` doubles as lesson date** — during import, the parsed lesson date from the spreadsheet is passed as the `createdAt` value rather than adding a separate date column.
 
-**`@@unique([customerId, lessonId])`**: Prevents a customer being added to the same lesson twice. Combined with `createMany({ skipDuplicates: true })`, re-importing the same file is safe.
+**`@@unique([customerId, lessonId])`** — prevents a customer being added to the same lesson twice. Combined with `createMany({ skipDuplicates: true })`, re-importing the same file is safe.
 
-**`ImportJob` table**: Import state must survive across multiple independent serverless function invocations. The database is the only shared persistent state between the start route, QStash processing calls, and the polling frontend. This is the **Saga Pattern**.
+**`ImportJob` table** — import state must survive across multiple independent serverless function invocations. The database is the only shared persistent state between the start route, QStash worker calls, and the polling frontend. This is the Saga Pattern.
 
-### Database Indexes
+### Recommended Indexes
+
+Run these in Supabase SQL Editor after the initial migration:
 
 ```sql
--- Run in Supabase SQL Editor after initial migration
-CREATE INDEX IF NOT EXISTS "customers_firstName_idx"            ON "customers"("firstName");
-CREATE INDEX IF NOT EXISTS "customers_lastName_idx"             ON "customers"("lastName");
-CREATE INDEX IF NOT EXISTS "customers_deletedAt_idx"            ON "customers"("deletedAt");
-CREATE INDEX IF NOT EXISTS "customers_createdAt_idx"            ON "customers"("createdAt");
-CREATE INDEX IF NOT EXISTS "lesson_participants_customerId_idx" ON "lesson_participants"("customerId");
-CREATE INDEX IF NOT EXISTS "lesson_participants_lessonId_idx"   ON "lesson_participants"("lessonId");
-CREATE INDEX IF NOT EXISTS "lessons_createdAt_idx"              ON "lessons"("createdAt");
-CREATE INDEX IF NOT EXISTS "lessons_instructorId_idx"           ON "lessons"("instructorId");
-CREATE INDEX IF NOT EXISTS "lessons_locationId_idx"             ON "lessons"("locationId");
-CREATE INDEX IF NOT EXISTS "users_firstName_idx"                ON "users"("firstName");
-CREATE INDEX IF NOT EXISTS "users_lastName_idx"                 ON "users"("lastName");
+CREATE INDEX IF NOT EXISTS "customers_firstName_idx"
+  ON "customers"("firstName");
+CREATE INDEX IF NOT EXISTS "customers_lastName_idx"
+  ON "customers"("lastName");
+CREATE INDEX IF NOT EXISTS "customers_deletedAt_idx"
+  ON "customers"("deletedAt");
+CREATE INDEX IF NOT EXISTS "customers_createdAt_idx"
+  ON "customers"("createdAt");
+CREATE INDEX IF NOT EXISTS "lesson_participants_customerId_idx"
+  ON "lesson_participants"("customerId");
+CREATE INDEX IF NOT EXISTS "lesson_participants_lessonId_idx"
+  ON "lesson_participants"("lessonId");
+CREATE INDEX IF NOT EXISTS "lessons_createdAt_idx"
+  ON "lessons"("createdAt");
+CREATE INDEX IF NOT EXISTS "lessons_instructorId_idx"
+  ON "lessons"("instructorId");
+CREATE INDEX IF NOT EXISTS "users_firstName_idx"
+  ON "users"("firstName");
+CREATE INDEX IF NOT EXISTS "users_lastName_idx"
+  ON "users"("lastName");
 ```
 
-The `deletedAt` index is the most impactful — every customer query filters `WHERE "deletedAt" IS NULL`, and without an index PostgreSQL performs a full table scan on every request.
+The `deletedAt` index has the biggest impact — every customer query filters `WHERE "deletedAt" IS NULL`, and without it PostgreSQL performs a full table scan on every request.
 
 ---
 
 ## 6. API Reference
 
-### API Map
+### Route Map
 
 ```
 /api/
-├── auth/
-│   └── login                POST   Validate credentials, return JWT
+├── auth/login                POST    Validate credentials → JWT
 │
 ├── customers/
-│   ├── (root)               GET    Paginated list (countOnly=true for count)
-│   ├── search               GET    ?name= full-text across name + email
-│   └── [customerId]         GET    Full detail with lesson history
-│                            PUT    Update fields (MANAGER)
-│                            DELETE Soft delete (MANAGER)
+│   ├── (root)                GET     Paginated list
+│   ├── search                GET     ?name= full-text search
+│   └── [customerId]          GET     Full profile + lesson history
+│                             PUT     Update fields (MANAGER)
+│                             DELETE  Soft delete (MANAGER)
 │
 ├── lessons/
-│   ├── new                  POST   Create lesson + register participants
-│   ├── recent               GET    Last N participants (dashboard feed)
-│   └── [lessonId]/
-│       └── participants/
-│           └── [customerId] DELETE Remove participant (MANAGER)
+│   ├── new                   POST    Create lesson + participants
+│   ├── recent                GET     Last N lesson entries (dashboard)
+│   └── [lessonId]/participants/
+│       └── [customerId]      PUT     Update symptoms/improvements
+│                             DELETE  Remove participant (MANAGER)
 │
 ├── users/
-│   ├── (root)               GET    All users
-│   │                        POST   Create user
-│   ├── [userId]             PUT    Update (re-hashes pw if changed)
-│   │                        DELETE Hard delete (MANAGER, guards last manager)
-│   ├── instructors          GET    INSTRUCTOR role only (edge-cached 60s)
-│   └── search               GET    ?name= search by name
+│   ├── (root)                GET     All users (MANAGER)
+│   │                         POST    Create user (MANAGER)
+│   ├── [userId]              PUT     Update user
+│   │                         DELETE  Delete user (MANAGER)
+│   ├── instructors           GET     INSTRUCTOR-role users (dropdown)
+│   └── search                GET     ?name=
 │
-├── locations/
-│   └── (root)               GET    All locations (edge-cached 60s)
-│                            POST   Create location
+├── instructors/
+│   ├── search                GET     ?name=
+│   └── [id]/lessons          GET     Instructor lesson history
+│
+├── locations/                GET     All locations
+│                             POST    Create location (MANAGER)
 │
 ├── import/
-│   ├── start                POST   Parse file, run refs, queue bulk work
-│   ├── process              POST   QStash worker — one chunk at a time
-│   └── status/[jobId]       GET    Poll progress (0–100)
+│   ├── start                 POST    Parse file, create job, queue work
+│   ├── process               POST    QStash worker (called by QStash)
+│   └── status/[jobId]        GET     Poll progress 0–100
 │
-├── export-csv               GET    Stream full CSV download
-└── health/db                GET    DB connectivity check
+├── export-csv                GET     Download all data as CSV
+├── settings                  GET     Get app settings
+│                             POST    Update settings (MANAGER)
+└── health/db                 GET     Database connectivity check
 ```
 
 ### Authentication
@@ -473,11 +412,17 @@ The `deletedAt` index is the most impactful — every customer query filters `WH
 { "username": "manager1", "password": "secret" }
 ```
 
-**Response (200):**
+**Response 200:**
 ```json
 {
   "token": "eyJhbGci...",
-  "user": { "id": "clx...", "username": "manager1", "role": "MANAGER", "firstName": "Min", "lastName": "Jegal" }
+  "user": {
+    "id": "clx...",
+    "username": "manager1",
+    "role": "MANAGER",
+    "firstName": "Min",
+    "lastName": "Jegal"
+  }
 }
 ```
 
@@ -485,29 +430,12 @@ The `deletedAt` index is the most impactful — every customer query filters `WH
 
 #### `GET /api/customers/search`
 
-**Query params:** `?name=kim&take=20&skip=0`
+Query params: `?name=kim&take=20&skip=0`
 
-**How the query is built:**
-```typescript
-where: {
-  AND: [
-    { deletedAt: null },
-    { OR: [
-      { firstName: { contains: name, mode: 'insensitive' } },
-      { lastName:  { contains: name, mode: 'insensitive' } },
-      { email:     { contains: name, mode: 'insensitive' } }
-    ]}
-  ]
-}
-```
-
-Prisma translates `mode: 'insensitive'` to `ILIKE` in PostgreSQL, which handles Korean characters correctly under Supabase's default `en_US.UTF-8` collation.
-
-### Lessons
+The search runs `ILIKE` across `firstName`, `lastName`, and `email` using Prisma's `mode: 'insensitive'`.
 
 #### `POST /api/lessons/new`
 
-**Request:**
 ```json
 {
   "instructorId": "clx...",
@@ -519,7 +447,6 @@ Prisma translates `mode: 'insensitive'` to `ILIKE` in PostgreSQL, which handles 
       "id": "clx...",
       "firstName": "Ji-young",
       "lastName": "Kim",
-      "email": "jy@example.com",
       "symptoms": "Lower back pain",
       "improvements": "More flexible than last week"
     }
@@ -534,51 +461,40 @@ Prisma translates `mode: 'insensitive'` to `ILIKE` in PostgreSQL, which handles 
 ### Login Flow
 
 ```
-Browser                       Server                      Database
-   │                             │                            │
-   │── POST /api/auth/login ─────►│                            │
-   │   { username, password }    │                            │
-   │                             │── SELECT * FROM users ────►│
-   │                             │   WHERE username = ?       │
-   │                             │◄── { id, hash, role } ─────│
-   │                             │                            │
-   │                             │  bcrypt.compare(pw, hash)  │
-   │                             │  → true ✓                  │
-   │                             │                            │
-   │                             │  jwt.sign(                 │
-   │                             │    { userId, role },       │
-   │                             │    JWT_SECRET,             │
-   │                             │    { expiresIn: '24h' }    │
-   │                             │  )                         │
-   │                             │                            │
-   │◄── 200 { token, user } ─────│                            │
-   │                             │                            │
-   │  cookie: jwt-token (1 day)  │                            │
-   │  cookie: user-data (7 days) │                            │
-   │                             │                            │
-   │── GET /api/customers ───────►│                            │
-   │   Authorization: Bearer ... │                            │
-   │                             │  jwt.verify(token, SECRET) │
-   │                             │  → { userId, role }        │
-   │                             │                            │
-   │                             │── SELECT customers ───────►│
-   │◄── { customers } ───────────│◄── rows ───────────────────│
+Browser                      Server                      Database
+   │                            │                           │
+   │── POST /api/auth/login ────►│                           │
+   │   { username, password }   │                           │
+   │                            │── SELECT user ───────────►│
+   │                            │◄── { id, hash, role } ────│
+   │                            │   bcrypt.compare(pw, hash)│
+   │                            │   jwt.sign(               │
+   │                            │     { userId, role },     │
+   │                            │     JWT_SECRET,           │
+   │                            │     { expiresIn: '24h' }  │
+   │                            │   )                       │
+   │◄── 200 { token, user } ────│                           │
+   │   cookie: jwt-token (1d)   │                           │
+```
+
+### JWT Structure
+
+```
+Header:   { "alg": "HS256", "typ": "JWT" }
+Payload:  { "userId": "clx...", "role": "MANAGER", "iat": ..., "exp": ... }
+Signature: HMACSHA256(header + payload, JWT_SECRET)
 ```
 
 ### Protected Route Pattern
 
 ```typescript
 function requireManager(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || ''
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
+  const token = request.headers.get('authorization')?.slice(7) ?? null
+  if (!token) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { role?: string }
-    if (decoded.role !== 'MANAGER') {
+    if (decoded.role !== 'MANAGER')
       return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-    }
     return { ok: true }
   } catch {
     return { error: NextResponse.json({ error: 'Invalid token' }, { status: 401 }) }
@@ -586,25 +502,7 @@ function requireManager(request: NextRequest) {
 }
 ```
 
-### JWT Token Structure
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    JWT TOKEN                            │
-├─────────────────────────────────────────────────────────┤
-│  Header    { "alg": "HS256", "typ": "JWT" }            │
-├─────────────────────────────────────────────────────────┤
-│  Payload   {                                            │
-│              "userId":   "clx9f2...",                   │
-│              "username": "manager1",                    │
-│              "role":     "MANAGER",                     │
-│              "iat":      1748000000,  ← issued at       │
-│              "exp":      1748086400   ← expires 24h     │
-│            }                                            │
-├─────────────────────────────────────────────────────────┤
-│  Signature  HMACSHA256(header + payload, JWT_SECRET)    │
-└─────────────────────────────────────────────────────────┘
-```
+**Important:** RBAC is enforced at the API layer. The UI conditionally hides buttons based on role, but that is only convenience — a user calling the API directly still gets a 403 if their JWT does not contain the required role.
 
 ---
 
@@ -613,471 +511,224 @@ function requireManager(request: NextRequest) {
 ### Page & Component Map
 
 ```
-Browser URL: /en
-│
-└── [locale]/layout.tsx
-    └── NextIntlClientProvider (loads en.json)
-        └── [locale]/page.tsx  ← HomePage
-            │
-            ├── HEADER
-            │   ├── Logo + Customer Count Badge
-            │   ├── LanguageSwitcher (en / 한국어)
-            │   └── Avatar + Name + Role Badge + Logout
-            │
-            ├── TOOLBAR
-            │   ├── Add New Record ──────────────► /en/add-record
-            │   ├── Export CSV ──────────────────► /api/export-csv (download)
-            │   ├── Import CSV ──────────────────► UploadModal (QStash progress)
-            │   └── [MANAGER ONLY]
-            │       ├── All Customers ───────────► AllCustomersPanel (lazy)
-            │       ├── All Users ───────────────► AllUsersPanel (lazy)
-            │       ├── Add User ────────────────► AddUserModal
-            │       ├── Add Location ────────────► AddLocationModal
-            │       └── Manage Users ────────────► /en/manage-users
-            │
-            ├── RECENT LESSONS PANEL
-            │   └── Last 8 participants (auto-loads, hides if empty)
-            │       └── Click → CustomerDetailModal
-            │
-            ├── ALL USERS PANEL (lazy, toggle)
-            │   └── Role filter: ALL / MANAGER / INSTRUCTOR
-            │
-            ├── ALL CUSTOMERS PANEL (lazy, paginated 50/page)
-            │
-            ├── SEARCH BOX
-            │   ├── useDebounce(400ms) → fires on 2+ chars
-            │   ├── Shimmer skeleton while loading
-            │   ├── Results list (20/page + pagination)
-            │   └── Each row → expandable lesson preview
-            │
-            └── MODALS (all portal-based, pure HTML+Tailwind)
-                ├── LoginModal
-                ├── CustomerDetailModal
-                ├── EditCustomerModal
-                ├── AddUserModal
-                ├── AddLocationModal
-                ├── UploadModal
-                └── ConfirmDialog
+/en  →  [locale]/layout.tsx
+            └── NextIntlClientProvider (loads en.json)
+                └── [locale]/page.tsx  (Dashboard)
+                    │
+                    ├── HEADER
+                    │   ├── Logo + Customer Count
+                    │   ├── LanguageSwitcher (en / 한국어)
+                    │   └── Avatar + Role Badge + Logout
+                    │
+                    ├── TOOLBAR
+                    │   ├── Add New Record → /en/add-record
+                    │   ├── Export CSV → /api/export-csv (download)
+                    │   ├── Import Excel → UploadModal
+                    │   └── [MANAGER ONLY]
+                    │       ├── All Customers → AllCustomersPanel
+                    │       ├── All Users → AllUsersPanel
+                    │       ├── Add User → AddUserModal
+                    │       ├── Add Location → AddLocationModal
+                    │       └── Manage Users → /en/manage-users
+                    │
+                    ├── RECENT LESSONS PANEL (auto-loads, 8 entries)
+                    │
+                    ├── SEARCH BOX
+                    │   ├── useDebounce(400ms) — fires on 2+ chars
+                    │   ├── Shimmer skeleton while loading
+                    │   └── Paginated results (20 per page)
+                    │       └── Expandable rows → lesson preview
+                    │
+                    └── MODALS (pure HTML + Tailwind, no Radix)
+                        ├── LoginModal
+                        ├── CustomerDetailModal
+                        ├── EditCustomerModal
+                        ├── AddUserModal
+                        ├── AddLocationModal
+                        ├── UploadModal
+                        └── ConfirmDialog
 ```
 
-### State Flow
+### Search State Flow
 
 ```
-User types "kim" in search box
-         │
-         ▼
-setSearchTerm("kim")
-         │
-         ▼
-useDebounce waits 400ms for typing to stop
-         │
-         ▼
-debouncedSearch changes → useEffect fires
-         │
-         ▼
-setIsLoading(true) + fetch /api/customers/search?name=kim
-         │
-         ▼
-Response arrives
-         │
-         ▼
-setSearchResults(data.customers)
-setIsLoading(false)
-         │
-         ▼
-Component re-renders → results displayed
-         │
-         ▼
-User clicks customer name
-         │
-         ▼
-handleViewCustomerDetails(customerId)
-→ fetch /api/customers/[id]  (full lesson history)
-→ setSelectedCustomerInfo(data)
-→ CustomerDetailModal opens
+User types "kim"
+  → setSearchTerm("kim")
+  → useDebounce waits 400ms
+  → debouncedSearch changes → useEffect fires
+  → setIsLoading(true)
+  → fetch /api/customers/search?name=kim
+  → setSearchResults(data.customers) + setIsLoading(false)
+  → User clicks a result
+  → fetch /api/customers/[id]  (full history, on-demand)
+  → CustomerDetailModal opens
 ```
 
-### Why No Radix UI on Main Pages
+### Why No Radix UI on the Main Dashboard
 
-The main dashboard and manage-users page are built with **pure HTML + Tailwind only**, deliberately avoiding shadcn/Radix UI components. Radix UI uses a portal pattern that inserts DOM nodes into `document.body`. Korean IME input methods, password managers, and translation browser extensions modify these portal nodes in ways that React's virtual DOM reconciliation does not expect:
-
-```
-NotFoundError: Failed to execute 'removeChild' on 'Node':
-  The node to be removed is not a child of this node.
-```
-
-The `add-record` page still uses shadcn Select components for dropdowns — a deliberate trade-off where the convenience outweighs the lower crash risk on that specific page.
+The dashboard uses **pure HTML + Tailwind only**, deliberately avoiding shadcn/Radix components. Radix UI uses a portal pattern that inserts DOM nodes into `document.body`. Korean IME input methods, browser translation extensions, and password managers mutate these portal nodes in ways React's virtual DOM reconciliation does not expect, causing `NotFoundError: removeChild` crashes. The `add-record` page still uses shadcn Select components where the UX trade-off is acceptable.
 
 ---
 
-## 9. Internationalization i18n
+## 9. Internationalization
 
-### Locale Routing Flow
-
-```
-User visits https://app.com/
-         │
-         ▼
-middleware.ts intercepts request
-Reads Accept-Language header
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-Korean     English
-browser    browser
-    │         │
-    ▼         ▼
-redirect   redirect
-to /ko     to /en
-    │         │
-    ▼         ▼
-[locale]/layout.tsx loads ko.json or en.json
-         │
-         ▼
-NextIntlClientProvider injects messages
-         │
-         ▼
-useTranslations() available in all components
-```
-
-### Name Formatting by Locale
+The app supports **English** (`/en/...`) and **Korean** (`/ko/...`) via [next-intl](https://next-intl-docs.vercel.app/).
 
 ```
-┌─────────────────────────────────────────────────────┐
-│               formatName() logic                    │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  locale = 'en'                                      │
-│  formatName("John", "Doe") → "John Doe"             │
-│                FirstName + " " + LastName           │
-│                                                     │
-│  locale = 'ko'                                      │
-│  formatName("준호", "김") → "김 준호"                  │
-│                LastName + " " + FirstName           │
-│                                                     │
-│  Used in: search results, lesson cards,             │
-│  user lists, avatars, detail modals                 │
-└─────────────────────────────────────────────────────┘
+User visits /
+  → middleware.ts reads Accept-Language header
+  → Redirects to /ko (Korean browser) or /en (everything else)
+  → [locale]/layout.tsx loads ko.json or en.json
+  → NextIntlClientProvider injects messages
+  → useTranslations() available in all components
+```
+
+### Name Formatting
+
+```
+locale = 'en'  →  formatName("John", "Doe") = "John Doe"
+locale = 'ko'  →  formatName("준호", "김")  = "김 준호"
+```
+
+Used in search results, lesson cards, user lists, avatars, and detail modals.
+
+### Adding a New Language
+
+```typescript
+// 1. Create messages/ja.json — copy all keys from en.json
+// 2. Add to src/i18n.ts:
+export const locales = ['en', 'ko', 'ja'] as const
+// 3. Done — middleware and routing handle the rest
 ```
 
 ---
 
-## 10. The Import Pipeline — A System Design Story
+## 10. Bulk Import Pipeline
 
-This section documents the full engineering journey of the import feature. Each attempt is documented because understanding **why** the final architecture exists requires understanding what failed first and why.
+The import system processes thousands of rows from historical Excel or CSV files asynchronously.
 
 ### The Problem
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    CONSTRAINTS                              │
-├─────────────────────────────────────────────────────────────┤
-│  Vercel Hobby plan    →  60 second max function timeout     │
-│  Serverless arch      →  No persistent background threads   │
-│  Real users watching  →  Must show live progress feedback   │
-│  HTTP must return     →  Cannot block the connection        │
-├─────────────────────────────────────────────────────────────┤
-│                    INPUT DATA                               │
-├─────────────────────────────────────────────────────────────┤
-│  File size            →  ~3,741 rows (real production file) │
-│  Unique locations     →  8                                  │
-│  Unique instructors   →  43                                 │
-│  Unique customers     →  165                                │
-│  Unique lessons       →  3,741  (every row is unique)       │
-│  Unique participants  →  3,741                              │
-└─────────────────────────────────────────────────────────────┘
+Vercel Hobby plan   →  60 second max function timeout
+Serverless arch     →  No persistent background threads
+3,741 row file      →  Impossible to process synchronously
+Real users watching →  Must show live progress feedback
 ```
 
----
-
-### Attempt 1 — Synchronous Processing (Naive)
+### Why Synchronous Failed
 
 ```
-Browser ──► POST /api/import ──► parse ──► insert all rows ──► response
-                                                    │
-                                              ⏱ 60 seconds
-                                                    │
-                                                    ▼
-                                           ❌ 504 GATEWAY TIMEOUT
-                                           No data imported
+Browser ──► POST /api/import ──► parse + insert all rows ──► response
+                                    │
+                              ⏱ 60 seconds max
+                                    │
+                                    ▼
+                           ❌ 504 GATEWAY TIMEOUT
 ```
 
-**System Design Lesson:**
-> Never do unbounded work in a synchronous HTTP handler. If execution time scales with input size, it does not belong in a request-response cycle.
+### The QStash Solution
 
----
-
-### Attempt 2 — Inngest (Failed)
+QStash is an HTTP-based message queue. Instead of doing work in the request, the work is queued and QStash calls back in chunks:
 
 ```
-                    ┌─────────────────────────────────────┐
-                    │              INNGEST                 │
-                    │                                     │
-┌──────────┐        │  ❌ BLOCKER 1: 256KB event limit    │
-│  Browser │──3.3MB►│  File payload rejected (13× over)  │
-└──────────┘        │                                     │
-                    │  ❌ BLOCKER 2: Deployment protection │
-                    │  Vercel Hobby blocks Inngest sync    │
-                    │  on preview URLs                    │
-                    │                                     │
-                    │  ❌ BLOCKER 3: 405 Method Not Allowed│
-                    │  Serve route exported wrong methods  │
-                    └─────────────────────────────────────┘
+Browser ──► POST /api/import/start ──► QStash
+                                            │
+                QStash ──► POST /api/import/process  (chunk 1)
+                                            │  ~1000 rows in one createMany
+                                            │
+                QStash ──► POST /api/import/process  (chunk 2)
+                                            │
+                         ... continues until complete ...
+
+Browser  (polls /api/import/status/[jobId] every 2s)
+  ◄── { progress: 25 }
+  ◄── { progress: 50 }
+  ◄── { progress: 100, status: "complete" }
 ```
 
-**System Design Lesson:**
-> Understand your platform constraints before choosing a tool. Always validate the full integration on your actual deployment tier — not just locally.
+### What Happens in Each Phase
 
----
-
-### Attempt 3 — QStash (The Right Tool)
-
-**The key insight — Inngest vs QStash flow direction:**
+**`POST /api/import/start`** (synchronous, runs in < 10 seconds):
 
 ```
-INNGEST (push model — Inngest calls you to sync):
-  Inngest ──► POST /api/inngest  ← Vercel blocks this on Hobby plan
-  Browser ──► POST /api/send-event ──► Inngest ──► POST /api/inngest
-                                               ← BLOCKED ❌
-
-QSTASH (pull model — you push to QStash, QStash calls you back):
-  Browser ──► POST /api/import/start ──► QStash
-                                              │
-              QStash ──► POST /api/import/process  ← your public URL
-                                              │      Vercel allows this ✅
-              QStash ──► POST /api/import/process  (next chunk)
-                                              │
-              ... repeats until done ...
+1. Parse Excel/CSV in memory (SheetJS)
+2. createMany locations (small — 8 rows)       → 1 query
+3. createMany instructors (small — 43 rows)    → 1 query
+4. createMany customers (small — 165 rows)     → 1 query
+5. Resolve all IDs (locationMap, instructorMap, customerMap)
+6. Pre-build all lesson + participant rows with IDs already resolved
+7. Store pre-resolved data in ImportJob.rowsJson
+8. Publish first chunk to QStash
+9. Return { jobId } to browser immediately
 ```
 
-**Full QStash pipeline:**
+**`POST /api/import/process`** (called by QStash, one chunk at a time):
 
 ```
-Browser                QStash                 Vercel Functions           Database
-   │                      │                          │                      │
-   │──POST /import/start──►│                          │                      │
-   │                      │                          │                      │
-   │                      │──POST /import/process────►│                      │
-   │                      │  { jobId, phase:         │──createMany─────────►│
-   │                      │    'lessons', chunk: 0 } │  1000 lessons        │
-   │                      │                          │◄─ done ──────────────│
-   │                      │◄── 200 OK ───────────────│                      │
-   │                      │                          │──UPDATE importJob───►│
-   │                      │                          │  progress: 25%       │
-   │                      │                          │  queue next chunk    │
-   │                      │──POST /import/process────►│                      │
-   │                      │  { jobId, chunk: 1 }     │──createMany─────────►│
-   │                      │                          │  1000 lessons        │
-   │                      │◄── 200 OK ───────────────│                      │
-   │                      │                          │                      │
-   │  (polls every 2s)    │                          │                      │
-   │──GET /import/status──────────────────────────────────────────────────► │
-   │◄── { progress: 25 }───────────────────────────────────────────────────│
-   │                      │                          │                      │
-   │  ... continues ...   │  ... continues ...       │                      │
-   │                      │                          │                      │
-   │──GET /import/status──────────────────────────────────────────────────► │
-   │◄── { status: 'complete', progress: 100 } ─────────────────────────────│
-   │                      │                          │                      │
-   │  Progress bar → 100% │                          │                      │
-   │  "Import complete"   │                          │                      │
+1. Verify QStash signature
+2. Load ImportJob.rowsJson from DB
+3. createMany(1000 lesson rows, skipDuplicates: true)   → 1 query
+4. createMany(1000 participant rows, skipDuplicates: true)
+5. Update ImportJob.progress
+6. Queue next chunk to QStash (or mark complete)
 ```
 
-**System Design Lesson:**
-> Message queues decouple producers from consumers. The browser returns immediately. Processing continues independently. If a step fails, QStash retries automatically.
-
----
-
-### Attempt 4 — Per-Row Upserts (Too Slow)
+### Performance Results
 
 ```
-// WRONG — N+1 queries
-for (const row of rows) {                    ← 3,741 iterations
-  await prisma.lesson.upsert({ ... })        ← ~50ms per DB round trip
-}
-
-Total time: 3,741 × 50ms = 187 seconds per phase
-3 phases × 187s = ~9 minutes just in DB time
-Plus retries, overhead → 35 MINUTES TOTAL ❌
-
-At 50,000 rows:
-50,000 × 50ms = 2,500 seconds = 41 minutes per phase
-→ NEVER FINISHES ❌
+Metric                Before (per-row upserts)    After (bulk createMany)
+─────────────────────────────────────────────────────────────────────────
+DB queries (3,741 r)       ~11,223                      ~12
+Import time                35 minutes                 ~2 minutes
+QStash calls               40+                          9
+50K row estimate           Never finishes            ~15 minutes
 ```
 
-**System Design Lesson:**
-> N+1 queries are fatal at scale. Per-row processing grows linearly and becomes impossible at large data sizes.
+### System Design Concepts Applied
 
----
-
-### Final Architecture — Bulk Inserts + Phase Separation
-
-**The data shape revelation:**
-
-```
-┌──────────────────────────────────────────────────────────┐
-│         ANALYZING THE ACTUAL IMPORT FILE                 │
-├─────────────────────┬──────────┬────────────────────────┤
-│  Entity             │  Count   │  Strategy              │
-├─────────────────────┼──────────┼────────────────────────┤
-│  Locations          │  8       │  Sync in start route   │
-│  Instructors        │  43      │  Sync in start route   │
-│  Customers          │  165     │  Sync in start route   │
-│  Lessons            │  3,741   │  Background QStash     │
-│  Participants       │  3,741   │  Background QStash     │
-└─────────────────────┴──────────┴────────────────────────┘
-
-Key insight: Reference data (locations/instructors/customers)
-is TINY. It belongs in the sync start route.
-Only the BULK data needs the background queue.
-```
-
-**The `createMany` breakthrough:**
-
-```
-BEFORE — per-row upsert:
-  3,741 × upsert()  =  3,741 database round trips
-  3,741 × 50ms      =  187 seconds
-  ❌
-
-AFTER — createMany in chunks:
-  4 × createMany(1000 rows)  =  4 database round trips
-  4 × ~3 seconds             =  12 seconds
-  ✅  15× faster
-
-SQL generated by createMany:
-  INSERT INTO lessons (id, lessonType, instructorId, ...)
-  VALUES (?, ?, ?, ...), (?, ?, ?, ...), ...  ← 1000 rows in ONE statement
-  ON CONFLICT DO NOTHING;
-```
-
-**The start route architecture:**
-
-```
-POST /api/import/start  (synchronous, < 10 seconds)
-  │
-  ├── 1. Parse Excel file in memory (SheetJS)
-  │
-  ├── 2. createMany locations (8 rows)        ← 1 query, instant
-  │
-  ├── 3. createMany instructors (43 rows)     ← 1 query, instant
-  │       (auto-generates username + hashed default password)
-  │
-  ├── 4. createMany customers (165 rows)      ← 1 query, instant
-  │
-  ├── 5. Resolve all IDs (2 SELECT queries)
-  │       locationMap: { "Studio A" → "clx..." }
-  │       instructorMap: { "john@abc.com" → "clx..." }
-  │       customerMap: { "C001" → "clx..." }
-  │
-  ├── 6. Pre-build lesson rows
-  │       { id, lessonType, instructorId, locationId, createdAt }
-  │       (IDs already resolved — no lookup needed in processing)
-  │
-  ├── 7. Pre-build participant rows
-  │       { customerId, lessonId, symptoms, improvements }
-  │
-  ├── 8. Store pre-resolved data in ImportJob.rowsJson
-  │       (~1.1MB vs 3.3MB raw — 3× smaller)
-  │
-  ├── 9. Publish first chunk to QStash
-  │       { jobId, phase: 'lessons', chunkIndex: 0 }
-  │
-  └── 10. Return { jobId, totalRows: 3741 } to browser immediately
-```
-
-**Performance comparison:**
-
-```
-┌───────────────────────────────────────────────────────────┐
-│                  PERFORMANCE RESULTS                      │
-├──────────────────────┬───────────────┬────────────────────┤
-│  Metric              │  Before       │  After             │
-├──────────────────────┼───────────────┼────────────────────┤
-│  DB queries (3741 r) │  ~11,223      │  ~12               │
-│  Import time         │  35 minutes   │  ~2 minutes        │
-│  QStash calls        │  40+          │  9                 │
-│  Data in DB (JSON)   │  3.3MB        │  1.1MB             │
-│  50K row estimate    │  Never ends   │  ~15 minutes       │
-└──────────────────────┴───────────────┴────────────────────┘
-```
-
-### Key System Design Concepts Applied
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│              SYSTEM DESIGN CONCEPTS IN THIS PIPELINE            │
-├────────────────────────────┬─────────────────────────────────────┤
-│  Concept                   │  Where It Appears                   │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Async Processing          │  Browser gets jobId immediately,    │
-│                            │  work happens independently         │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Message Queue             │  QStash delivers chunks reliably,   │
-│                            │  auto-retries on failure            │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Chunking                  │  3741 rows ÷ 1000 = 4 safe calls   │
-│                            │  each fits in 60s timeout           │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Bulk Operations           │  createMany = O(1) queries/chunk    │
-│                            │  vs O(n) with per-row upserts       │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Phase Separation          │  Refs (tiny, sync) vs bulk          │
-│                            │  (large, async) separated           │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Producer-Consumer         │  Processing writes progress to DB,  │
-│                            │  browser polls independently        │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Idempotency               │  skipDuplicates: true — re-import   │
-│                            │  same file = same result            │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Saga Pattern              │  Long operation split across steps, │
-│                            │  each step updates ImportJob state  │
-├────────────────────────────┼─────────────────────────────────────┤
-│  Pre-resolution            │  IDs resolved once in start route,  │
-│                            │  not on every QStash call           │
-└────────────────────────────┴─────────────────────────────────────┘
-```
+| Concept | Where |
+|---------|-------|
+| Async processing | Browser gets `jobId` immediately; work happens independently |
+| Message queue | QStash delivers chunks reliably with auto-retry |
+| Chunking | 3,741 ÷ 1,000 = 4 safe calls, each within 60s timeout |
+| Bulk operations | `createMany` = O(1) queries/chunk vs O(n) per-row upserts |
+| Phase separation | Reference data (tiny, sync) separated from bulk data (async) |
+| Idempotency | `skipDuplicates: true` — re-importing the same file is safe |
+| Saga pattern | Long operation split across steps; each step updates `ImportJob` state |
+| Pre-resolution | IDs resolved once in start route, not on every QStash call |
 
 ---
 
 ## 11. CSV Export
 
 ```
-Browser                        Server                     Database
-   │                              │                           │
-   │── GET /api/export-csv ───────►│                           │
-   │                              │── SELECT customers ───────►│
-   │                              │   WHERE deletedAt IS NULL  │
-   │                              │   INCLUDE lessonParticipants│
-   │                              │   → lessons → instructor   │
-   │                              │   → location               │
-   │                              │◄── all rows ───────────────│
-   │                              │                           │
-   │                              │  Build CSV in memory:     │
-   │                              │  flatMap customers        │
-   │                              │  → one row per lesson     │
-   │                              │                           │
-   │◄── CSV file download ────────│                           │
-   │  Content-Disposition:        │                           │
-   │  attachment; filename=...    │                           │
+Browser ──► GET /api/export-csv (Authorization: Bearer ...)
+                │
+                ├── SELECT customers WHERE deletedAt IS NULL
+                │   INCLUDE lessonParticipants → lessons → instructor → location
+                │
+                ├── flatMap: one CSV row per lesson attendance record
+                │
+                └── Response headers:
+                    Content-Type: text/csv
+                    Content-Disposition: attachment; filename=export.csv
 ```
 
-The exported CSV can be re-imported — column headers match the import pipeline's expected field names exactly.
+The exported CSV column headers match the import pipeline's expected field names — you can export, edit, and re-import.
 
 ---
 
 ## 12. Performance Optimizations
 
-### Parallel Queries
+### Parallel DB Queries
 
 ```typescript
-// ❌ Sequential — 2× slower
-const customers = await prisma.customer.findMany({ ... })
-const total = await prisma.customer.count({ ... })
+// Sequential — 2× slower
+const customers = await prisma.customer.findMany(...)
+const total = await prisma.customer.count(...)
 
-// ✅ Parallel — both queries fire simultaneously
+// Parallel — both queries fire simultaneously
 const [customers, total] = await Promise.all([
   prisma.customer.findMany({ skip, take, where, include }),
   prisma.customer.count({ where })
@@ -1087,107 +738,96 @@ const [customers, total] = await Promise.all([
 ### Lazy Panel Loading
 
 ```
-Page load cost is CONSTANT regardless of customer count:
-
-┌──────────────────────────────────────────┐
-│  Page loads                              │
-│  → Fetch: recent lessons (8 rows) only  │
-│  → Panels NOT fetched                   │
-└──────────────────────────────────────────┘
-          │
-          │ User clicks "All Customers"
-          ▼
-┌──────────────────────────────────────────┐
-│  First open: fetch page 1 (50 customers)│
-│  Subsequent opens: use cached state     │
-└──────────────────────────────────────────┘
+Page loads → fetches only recent lessons (8 rows)
+          ↓ user clicks "All Customers"
+          → first open: fetch page 1 (50 customers)
+          → subsequent opens: use cached React state
 ```
 
-### Customer Detail On-Demand
+### Customer Detail On Demand
 
 ```
-Search results → load 5 lesson previews per customer (fast)
-                          │
-                          │ User opens detail modal
-                          ▼
-              GET /api/customers/[id] → full history
-              (only fetched when actually needed)
+Search results → 5 lesson previews per customer (fast, included in search)
+                  ↓ user opens detail modal
+                  → fetch full history (only when needed)
 ```
 
 ### Edge Caching for Reference Data
 
 ```typescript
-// Instructors and locations change rarely
-// Serve from Vercel's CDN edge for 60 seconds
+// Instructors and locations change rarely — serve from Vercel CDN edge
 return NextResponse.json(data, {
   headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' }
 })
+```
 
-// s-maxage=60            → CDN serves without hitting DB for 60s
-// stale-while-revalidate → serve stale + revalidate in background
-//                          users never wait for dropdown data
+### Debounced Search
+
+```typescript
+// 400ms debounce prevents an API call on every keystroke
+const debouncedSearch = useDebounce(searchTerm, 400)
+useEffect(() => {
+  if (debouncedSearch.length >= 2) fetchCustomers(debouncedSearch)
+}, [debouncedSearch])
 ```
 
 ---
 
 ## 13. Environment Variables
 
+Create a `.env.local` file at the project root (never commit this):
+
 ```bash
-# .env.local — never commit this file
+# PostgreSQL pooled via PgBouncer — used at runtime
+DATABASE_URL="postgresql://postgres.[ref]:[password]@pooler.supabase.com:6543/postgres?pgbouncer=true"
 
-# PostgreSQL pooled via PgBouncer (runtime queries)
-DATABASE_URL="postgresql://postgres.[ref]:[pw]@pooler.supabase.com:6543/postgres?pgbouncer=true"
-
-# PostgreSQL direct (Prisma migrations only — port 5432 not 6543)
-DIRECT_URL="postgresql://postgres.[ref]:[pw]@supabase.com:5432/postgres"
+# PostgreSQL direct connection — used by Prisma CLI migrations only (port 5432)
+DIRECT_URL="postgresql://postgres.[ref]:[password]@[host].supabase.com:5432/postgres"
 
 # JWT signing secret
-# Generate with: openssl rand -hex 64
+# Generate: openssl rand -hex 64
 JWT_SECRET="your-64-char-hex-secret"
 
-# QStash — from Upstash dashboard → QStash → Quickstart
-# Use EU regional endpoint if your Supabase is in Europe
-QSTASH_URL="https://qstash-eu-central-1.upstash.io"
+# Upstash QStash — from Upstash dashboard → QStash → Quickstart
+QSTASH_URL="https://qstash.upstash.io"
 QSTASH_TOKEN="eyJVc2VySUQi..."
 QSTASH_CURRENT_SIGNING_KEY="sig_..."
 QSTASH_NEXT_SIGNING_KEY="sig_..."
 
-# Your production domain (no trailing slash)
+# Your production domain (no trailing slash) — used by QStash to call back
 NEXT_PUBLIC_APP_URL="https://your-app.vercel.app"
 ```
 
-**Where to find Supabase URLs:**
-Project → Settings → Database → Connection string.
-Port 6543 = pooled (`DATABASE_URL`), port 5432 = direct (`DIRECT_URL`).
+**Where to find Supabase URLs:**  
+Project → Settings → Database → Connection string.  
+Port **6543** = pooled (`DATABASE_URL`). Port **5432** = direct (`DIRECT_URL`).
 
 ---
 
-## 14. Local Development Setup
+## 14. Local Development
 
-**Prerequisites:** Node.js 18+, Supabase project (or any PostgreSQL)
+**Prerequisites:** Node.js 18+, a Supabase project (free tier works)
 
 ```bash
 # 1. Clone
 git clone https://github.com/DvbyDt/Ankh-Client-Record-DB.git
 cd Ankh-Client-Record-DB/ankh-client-app
 
-# 2. Install
+# 2. Install dependencies (also runs prisma generate via postinstall)
 npm install
 
-# 3. Environment
-cp .env.production.example .env.local
-# Fill in DATABASE_URL, DIRECT_URL, JWT_SECRET
+# 3. Configure environment
+cp .env.example .env.local
+# Edit .env.local — fill in DATABASE_URL, DIRECT_URL, JWT_SECRET
 
-# 4. Generate Prisma client (required before first run)
-npx prisma generate
+# 4. Apply database migrations
+npx prisma migrate deploy
 
-# 5. Run migrations (creates all tables)
-npx prisma migrate dev
+# 5. Create the first manager account
+npm run seed
+# Prompts for username and password
 
-# 6. Create first manager account
-npm run seed -- yourusername yourpassword
-
-# 7. Start dev server
+# 6. Start the dev server with Turbopack
 npm run dev
 # → http://localhost:3000 (redirects to /en)
 ```
@@ -1195,12 +835,13 @@ npm run dev
 ### Useful Commands
 
 ```bash
-npm run dev                                     # Turbopack dev server
-npm run build                                   # Production build
-npm run lint                                    # ESLint check
-npx prisma studio                               # Visual DB browser (localhost:5555)
-npx prisma migrate dev --name "describe_change" # New migration after schema edit
-npx prisma generate                             # Regenerate TypeScript client
+npm run dev                                      # Turbopack dev server
+npm run build                                    # Production build
+npm run start                                    # Serve production build locally
+npm run lint                                     # ESLint check
+npx prisma studio                                # Visual DB browser at localhost:5555
+npx prisma migrate dev --name "describe_change"  # New migration after schema edits
+npx prisma generate                              # Regenerate TypeScript client
 ```
 
 ---
@@ -1208,119 +849,86 @@ npx prisma generate                             # Regenerate TypeScript client
 ## 15. Database Migrations
 
 ```
-Edit prisma/schema.prisma
-         │
-         ▼
-npx prisma migrate dev --name "add_field"
-         │
-         ├── Compares schema to last migration
-         ├── Generates migration.sql
-         ├── Applies to dev database
-         └── Regenerates TypeScript client
+1. Edit prisma/schema.prisma
+2. npx prisma migrate dev --name "add_field"
+      ├── Compares schema to last migration
+      ├── Generates SQL migration file
+      ├── Applies to dev database
+      └── Regenerates TypeScript Prisma client
 ```
 
 ### Production Migration
 
 ```bash
-# IMPORTANT: Use DIRECT_URL (port 5432) not DATABASE_URL (port 6543)
-# PgBouncer does not support DDL transaction modes
+# IMPORTANT: Must use DIRECT_URL (port 5432), not DATABASE_URL (port 6543)
+# PgBouncer does not support DDL transaction modes required by Prisma migrate
 
 export DATABASE_URL="postgresql://...supabase.com:5432/postgres"
 npx prisma migrate deploy
 
-# OR paste migration SQL directly in Supabase SQL Editor
+# OR paste the SQL from prisma/migrations/... directly in Supabase SQL Editor
 ```
 
 ---
 
-## 16. Deployment Vercel + Supabase
+## 16. Deployment
 
-### Full Deployment Architecture
+### Vercel + Supabase
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                    DEPLOYMENT ARCHITECTURE                     │
-└────────────────────────────────────────────────────────────────┘
-
-  git push → GitHub → Vercel auto-deploy
-                            │
-                            ▼
-                   ┌─────────────────┐
-                   │  npm install    │
-                   │  postinstall:   │
-                   │  prisma generate│  ← always regenerates types
-                   │  next build     │
-                   └────────┬────────┘
-                            │
-                            ▼
-             ┌──────────────────────────────────┐
-             │         VERCEL EDGE CDN           │
-             │  JS bundles, CSS, images         │
-             │  Edge-cached API responses        │
-             └──────────────┬───────────────────┘
-                            │
-                 ┌──────────┼──────────┐
-                 │          │          │
-                 ▼          ▼          ▼
-           /api/auth  /api/customers  /api/import/...
-           Serverless  Serverless     Serverless
-           Function    Function       Function
-           ~50ms cold  ~50ms cold     ~50ms cold
-           60s max     60s max        60s max
-                 │          │          │
-                 └──────────┼──────────┘
-                            │
-                            ▼
-                  ┌─────────────────────┐
-                  │  SUPABASE PGBOUNCER  │
-                  │  port 6543          │
-                  │  Pool: ~20 conns    │
-                  └──────────┬──────────┘
-                             │
-                             ▼
-                  ┌─────────────────────┐
-                  │  SUPABASE POSTGRES  │
-                  │  AWS Seoul          │
-                  │  Daily backups      │
-                  └─────────────────────┘
-
-  Background jobs:
-  Vercel fn ──► QStash (EU) ──► POST /api/import/process ──► DB
+git push → GitHub → Vercel auto-deploys
+                        │
+                        ▼
+               npm install
+               postinstall: prisma generate   ← regenerates types on every build
+               next build --turbopack
+                        │
+                        ▼
+            Vercel Edge CDN (static assets)
+                        │
+                 Serverless Functions
+                 /api/auth · /api/customers · /api/import · ...
+                        │
+               Supabase PgBouncer :6543
+                        │
+               Supabase PostgreSQL (AWS Seoul)
 ```
 
 ### Deploy Steps
 
 ```bash
-# Push to GitHub — Vercel auto-deploys on push to main
+# Push to main — Vercel auto-deploys
 git add .
 git commit -m "your change"
 git push origin main
 
-# After schema changes — run migrations manually
+# After schema changes — run migration manually before or immediately after deploy
 DIRECT_URL="your_direct_url" npx prisma migrate deploy
 ```
+
+### Environment Variables on Vercel
+
+Set all variables from [Section 13](#13-environment-variables) in:  
+Vercel Dashboard → Your Project → Settings → Environment Variables
 
 ---
 
 ## 17. Role-Based Access Control
 
-RBAC is enforced at two independent layers:
+Two independent enforcement layers:
 
 ```
-                      REQUEST
-                         │
-                         ▼
-              ┌─────────────────────┐
-              │   API LAYER         │  ← REAL security boundary
-              │   jwt.verify()      │
-              │   role === 'MANAGER'│
-              └────────┬────────────┘
+                    REQUEST
                        │
-              ┌────────┴────────────┐
-              │                     │
-              ▼                     ▼
-         ALLOWED                REJECTED
-         proceed                401 / 403
+                       ▼
+            ┌─────────────────────┐
+            │      API LAYER      │  ← REAL security boundary
+            │   jwt.verify()      │
+            │   role === 'MANAGER'│
+            └────────┬────────────┘
+                     │
+            ALLOWED  │  REJECTED
+            proceed  │  401 / 403
 ```
 
 ```
@@ -1328,284 +936,176 @@ RBAC is enforced at two independent layers:
                        │
           currentUser?.role === 'MANAGER'
                        │
-              ┌────────┴────────────┐
-              │                     │
-              ▼                     ▼
-         Show button            Hide button
-         (convenience)          (convenience)
+            Show/hide button
+            (UX convenience only)
 
-    ⚠️  UI is NOT a security boundary.
-    A user who bypasses the UI and calls
-    the API directly still gets 403 if
-    their JWT does not contain MANAGER role.
+⚠️  The UI is NOT a security boundary.
+    A user bypassing the UI and calling the
+    API directly still gets 403 if their JWT
+    does not contain the MANAGER role.
 ```
 
 ---
 
-## 18. Error Handling Strategy
+## 18. Error Handling
 
-### API Error Flow
+### API Pattern
 
-```
-Route handler
-     │
-     ▼
-┌─────────────────────────────────────────┐
-│  try {                                  │
-│    const data = await prisma.customer   │
-│      .findMany(...)                     │
-│    return NextResponse.json({ data })   │
-│  } catch (error) {                      │
-│    console.error(error)  ← server logs  │
-│    return NextResponse.json(            │
-│      { error: 'Internal server error' },│  ← never expose stack trace
-│      { status: 500 }                    │
-│    )                                    │
-│  }                                      │
-└─────────────────────────────────────────┘
+```typescript
+try {
+  const data = await prisma.customer.findMany(...)
+  return NextResponse.json({ data })
+} catch (error) {
+  console.error('/api/customers error:', error)     // full error in server logs
+  return NextResponse.json(
+    { error: 'Internal server error' },             // never expose stack traces
+    { status: 500 }
+  )
+}
 ```
 
 ### Import Partial Success
 
 ```
 3,741 rows in file
-     │
-     ├── 3,738 rows valid → imported ✅
-     └── 3 rows invalid → skipped with reason
+  ├── 3,738 rows valid → imported ✅
+  └── 3 rows invalid → skipped with reason
 
-HTTP 207 Multi-Status response:
+Response:
 {
   "status": "complete",
   "processedCount": 3738,
   "errorCount": 3,
   "errors": [
     "Row 12: Missing customerId",
-    "Row 45: Invalid date format",
-    "Row 892: Missing instructor name"
+    "Row 45: Invalid date format"
   ]
 }
-
-207 ≠ 200 (full success)
-207 ≠ 5xx (total failure)
-Frontend distinguishes all three cases
 ```
 
 ---
 
-## 19. Scalability Analysis
-
-```
-Import time grows LINEARLY with data size:
-
-Rows     │ Time        │ QStash calls │ DB queries
-─────────┼─────────────┼──────────────┼───────────
-  3,741  │  ~2 min     │     9        │    ~12
- 10,000  │  ~4 min     │    22        │    ~22
- 50,000  │ ~15 min     │   102        │   ~102
-100,000  │ ~28 min     │   202        │   ~202
-
-O(n / chunk_size) — doubling data doubles time.
-This is correct and expected for a bulk import pipeline.
-
-              Time
-               │
-               │                          ╱
-   28 min ─────┼─────────────────────────╱─────
-               │                    ╱
-   15 min ─────┼────────────────╱──────────────
-               │           ╱
-    4 min ─────┼────────╱──────────────────────
-    2 min ─────┼─────╱─────────────────────────
-               │  ╱
-               └──┬──────┬───────┬──────┬──────
-                 3.7K  10K    50K   100K  rows
-
-Linear growth (O(n)) — NOT exponential.
-```
-
-**Future scaling bottleneck:** At 100K+ rows, `rowsJson` in the `ImportJob` table becomes a large JSON blob. Solution: move pre-resolved data to a dedicated staging table with proper indexing.
-
----
-
-## 20. Adding New Features
-
-### Add a New Field to Customer
-
-```bash
-# 1. Edit schema
-vim prisma/schema.prisma
-
-# 2. Create migration
-npx prisma migrate dev --name "add_field_to_customer"
-
-# 3. Update API routes (GET, PUT)
-# 4. Update frontend form + display
-```
-
-### Add a New API Route
-
-```typescript
-// src/app/api/your-resource/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-
-export async function GET(request: NextRequest) {
-  try {
-    const data = await prisma.yourModel.findMany()
-    return NextResponse.json({ data })
-  } catch (error) {
-    console.error('GET /api/your-resource error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-```
-
-### Add a New Language
-
-```typescript
-// 1. Create messages/ja.json with all keys from en.json
-// 2. Add to src/i18n.ts:
-export const locales = ['en', 'ko', 'ja'] as const
-// 3. Done — middleware and routing handle the rest
-```
-
----
-
-## 21. Common Issues & Fixes
+## 19. Common Issues & Fixes
 
 ### `PrismaClientInitializationError` on Vercel
 
-`DATABASE_URL` not set or using wrong port. Must be port **6543** (pooled).
+`DATABASE_URL` is not set or is using the wrong port. Must be port **6543** (pooled):
 
-```bash
-# Check in Vercel: Project Settings → Environment Variables
-# Value must look like: postgresql://...pooler.supabase.com:6543/postgres
+```
+postgresql://postgres.[ref]:[pass]@pooler.supabase.com:6543/postgres?pgbouncer=true
 ```
 
 ### Migrations fail with "prepared statement already exists"
 
-Using pooled URL for migrations. Always use `DIRECT_URL` (port 5432):
-
-```bash
-export DATABASE_URL="postgresql://...supabase.com:5432/postgres"  # port 5432
-npx prisma migrate deploy
-```
+You're running `prisma migrate deploy` with the pooled URL. Always use `DIRECT_URL` (port 5432) for migrations — PgBouncer does not support DDL transaction modes.
 
 ### `NotFoundError: removeChild` crash
 
-Browser extension (Korean IME, password manager) mutating Radix UI portal nodes. Rebuild the affected page using pure HTML + Tailwind, removing all shadcn/Radix components.
+A browser extension (Korean IME, Microsoft Translator, password manager) is mutating Radix UI portal nodes. Add `translate="no"` to the `<html>` element in `src/app/[locale]/layout.tsx` as a primary fix. See [Debug Diary #001](#001--korean-names-crashing-react-in-microsoft-edge) for the full root cause.
 
-### JWT token not persisting after login
+### Import progress stuck cycling at the same percentage
 
-`JWT_SECRET` not set in environment. `jwt.sign()` throws → login returns 500 → frontend silently fails to store token.
-
-### Import stuck cycling at same percentage
-
-A QStash processing chunk is timing out and retrying. Check Vercel function logs. Common causes:
+A QStash processing chunk is timing out and retrying. Check Vercel function logs for the cause:
 
 ```
-Invalid date in spreadsheet  → check Lesson Date column format
-Missing instructor name      → check Instructor Name column is non-empty
-DB timeout under heavy load  → reduce CHUNK_SIZE from 1000 to 500
+Invalid date in spreadsheet   → check Lesson Date column format (DD/MM/YYYY)
+Missing instructor name       → verify Instructor Name column is non-empty
+DB timeout under load         → reduce CHUNK_SIZE from 1000 to 500
 ```
 
 ### QStash returning 401 errors
 
-Wrong regional endpoint. If Supabase is in EU, `QSTASH_URL` must be `https://qstash-eu-central-1.upstash.io`. Also ensure you use the `@upstash/qstash` SDK with `baseUrl: process.env.QSTASH_URL` explicitly — raw `fetch` to QStash bypasses regional routing.
+Wrong regional endpoint. Check the `QSTASH_URL` value. If your Supabase is in Europe, use `https://qstash-eu-central-1.upstash.io`.
 
 ### Search returns no results for Korean names
 
-Prisma's `contains` with `mode: 'insensitive'` uses `ILIKE`. Supabase's default `en_US.UTF-8` collation handles Korean correctly. If missing, verify the `customers_firstName_idx` and `customers_lastName_idx` indexes exist — PostgreSQL may fall back to sequential scan without them.
+Korean search uses Prisma `mode: 'insensitive'` which maps to `ILIKE` in PostgreSQL. Verify the name indexes exist — PostgreSQL falls back to a full table scan without them, which can time out on larger datasets.
 
 ### Build fails with ESLint errors
 
-Set rules to `"warn"` not `"error"` in `eslint.config.mjs`:
+Set lint rules to `"warn"` instead of `"error"` in `eslint.config.mjs` to prevent warnings from blocking the build:
 
 ```javascript
 rules: {
   "@typescript-eslint/no-explicit-any": "warn",
   "@typescript-eslint/no-unused-vars": "warn",
-  "react/no-unescaped-entities": "warn",
 }
 ```
 
 ---
 
----
+## 20. Debug Diaries
 
-## 22. Debug Diaries — Bugs, Root Causes & Fixes
-
-A running log of interesting, non-obvious bugs encountered in production. These are worth documenting because the symptoms are misleading, the root causes are subtle, and the fixes are small but the reasoning behind them matters.
+A log of non-obvious bugs found in production. The symptoms were misleading, the root causes subtle, and the fixes small but the reasoning matters.
 
 ---
 
 ### #001 — Korean Names Crashing React in Microsoft Edge
 
-**Date discovered:** 2026-03-27
-**Affected flow:** Add New Record → Existing Customer → Search
-**Affected browsers:** Microsoft Edge (Chromium), any browser with auto-translate enabled
-**Symptom in console:**
+**Date:** 2026-03-27  
+**Affected flow:** Add New Record → Existing Customer → Search  
+**Browsers affected:** Microsoft Edge (Chromium), any browser with auto-translate enabled
+
+**Symptoms:**
+
 ```
 Uncaught Error: Minified React error #418
 Uncaught NotFoundError: Failed to execute 'insertBefore' on 'Node':
   The node before which the new node is to be inserted is not a child of this node.
 ```
-**Symptom for user:** The app crashes silently mid-search. No API errors visible in the network tab. Only reproducible with specific Korean names (e.g. `김동훈`) — Latin names work fine.
+
+App crashes silently mid-search. No API errors in the network tab. Only reproducible with specific Korean names — Latin names work fine.
 
 #### Root Cause
 
-Edge ships with a built-in **Microsoft Translator**. When it detects text in a language that differs from the browser's UI language (e.g., Korean text inside an otherwise English page), it automatically wraps individual words and characters in `<span>` elements to annotate them for translation — **directly mutating the real DOM**.
+Edge ships with a built-in **Microsoft Translator**. When it detects text in a language that differs from the browser's UI language, it automatically wraps individual words in `<span>` elements — **directly mutating the real DOM** without React's knowledge.
 
-React maintains a virtual DOM and computes the minimal set of DOM operations needed to reach the correct UI state. When Edge injects extra `<span>` nodes into the DOM, React's virtual DOM no longer matches the real DOM. On the next render cycle, React attempts to `insertBefore` a node relative to what it believes is its sibling — but that sibling has been moved or wrapped by the translator. This throws `NotFoundError`, which React surfaces as error `#418` (a DOM reconciliation failure / hydration mismatch).
+React maintains a virtual DOM and computes the minimal set of DOM operations to reach the correct UI. When Edge injects extra `<span>` nodes, React's virtual DOM no longer matches the real DOM. On the next render cycle, React attempts `insertBefore` relative to what it believes is a sibling — but that sibling has been moved by the translator. This throws `NotFoundError`, surfaced as React error `#418`.
 
-**Why only certain names?** The translator's language-detection triggers on character density. A name like `김동훈` (3 Korean characters) reliably triggers it; a name with only 1–2 characters sometimes does not, making the bug appear intermittent.
+**Why only certain names?** The translator's detection triggers on character density. Three Korean characters reliably trigger it; one or two sometimes do not, making the bug appear intermittent.
 
-**Why only Edge?** Chrome's translation is opt-in via an extension; Edge's Microsoft Translator activates automatically based on detected language. Safari on iOS has the same architecture but a different triggering heuristic.
-
-**Why no API errors in the logs?** The crash happens entirely in the browser's render layer after the API response has already been received and rendered. The server is healthy — this is a pure client-side DOM corruption issue.
+**Why no API errors?** The crash is entirely in the browser render layer after the API response has already been received. The server is healthy.
 
 #### Fix
 
-Three changes, each addressing a different layer of the problem:
+**1. `translate="no"` on `<html>` — primary fix** (`src/app/[locale]/layout.tsx`):
 
-**1. `translate="no"` on `<html>` — primary fix**
-File: `src/app/[locale]/layout.tsx`
 ```tsx
 <html lang={locale} translate="no">
 ```
-This is the W3C-standard attribute that instructs all browsers and translation tools (Edge Translator, Google Translate, DeepL browser extension) not to auto-translate this document. For a database app that stores real patient names and clinical notes, this is always the correct setting — you never want the browser silently rewriting stored data.
 
-This attribute has **zero effect on `next-intl`** or any other app-level translation logic. It only stops the browser's own automatic translation layer from touching the DOM.
+This is the W3C-standard attribute that instructs all browsers and translation tools not to auto-translate the page. For a database app that stores real patient names and clinical notes, this is always the correct setting.
 
-**2. `translate="no"` on the customer name container — belt-and-suspenders**
-File: `src/app/[locale]/add-record/page.tsx`
+This attribute has **zero effect on `next-intl`** or app-level translations — it only stops the browser's own translation layer from touching the DOM.
+
+**2. `translate="no"` on the customer name container** (belt-and-suspenders):
+
 ```tsx
 <div className="flex-1 cursor-pointer" onClick={...} translate="no">
 ```
-In case a user has a browser extension that ignores the `<html>` attribute, scoping `translate="no"` directly to the element that renders Korean names provides a second line of defence on the exact node that was crashing.
 
-**3. `spellCheck={false}` and `autoComplete="off"` on the search input**
-File: `src/app/[locale]/add-record/page.tsx`
+**3. `spellCheck={false}` and `autoComplete="off"` on the search input:**
+
 ```tsx
 <Input spellCheck={false} autoComplete="off" ... />
 ```
-Browser spellcheck on an input field can also inject DOM annotations (especially Edge's Microsoft Editor, which adds grammar/style suggestions). Disabling it on the search input prevents any browser-side DOM mutation on the text the user is actively typing.
 
-#### What `translate="no"` does NOT affect
+Edge's Microsoft Editor also injects DOM annotations for grammar/style suggestions. Disabling spellcheck on the search input prevents mutation on the text being typed.
+
+#### What `translate="no"` Does NOT Affect
 
 | Feature | Affected? |
-|---|---|
-| `next-intl` Korean ↔ English UI switching | No — this is app code, not browser translation |
+|---------|-----------|
+| `next-intl` Korean ↔ English switching | No |
 | API calls and database queries | No |
 | User-typed input in forms | No |
-| Copy-paste of Korean text | No |
 | Search / filter functionality | No |
 | The "Translate this page?" browser prompt | Yes — it will no longer appear (intentional) |
 
 #### Lesson
 
-When a React crash is **browser-specific**, **non-reproducible via network inspection**, and **correlated with a specific character set** — look at browser-level DOM mutation first (translation, spellcheck, grammar tools, accessibility extensions) before assuming an application bug. The DOM React reconciles against is not always the DOM only React has written.
+When a React crash is browser-specific, non-reproducible via network inspection, and correlated with a specific character set — check browser-level DOM mutation first (translation tools, spellcheck, grammar extensions, password managers) before assuming an application bug. The DOM React reconciles against is not always the DOM only React has written.
 
 ---
 
-*Built for production. Evolved through real constraints. Every architectural decision has a reason.*
+*Built for production. Evolved through real constraints. Every architectural decision documented.*
