@@ -224,7 +224,17 @@
     "placeholderLastName": "Last name",
     "placeholderEmail": "Email",
     "placeholderPhone": "Phone",
-    "placeholderName": "Full name"
+    "placeholderName": "Full name",
+    "selectLessonType": "Select Lesson Type",
+    "selectLessonTypeDesc": "Is this an individual or group lesson?",
+    "groupLesson": "Group Lesson",
+    "groupLessonDesc": "Record a lesson for a group — enter participant count and company",
+    "individualLesson": "Individual Lesson",
+    "individualLessonDesc": "Record a lesson for one or more individual customers",
+    "participantCount": "Number of Participants",
+    "participantCountPlaceholder": "e.g. 10",
+    "groupCompanyLabel": "Company / Organization",
+    "groupCompanyPlaceholder": "Optional"
   },
   "UserManagement": {
     "title": "Add New User",

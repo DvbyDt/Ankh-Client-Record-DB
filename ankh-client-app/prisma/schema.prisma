@@ -68,11 +68,13 @@ model Customer {
 }
 
 model Lesson {
-  id            String   @id @default(cuid())
-  lessonType    String
-  lessonContent String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  lessonType            String
+  lessonContent         String?
+  groupParticipantCount Int?
+  groupCompany          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   instructorId String
   locationId   String

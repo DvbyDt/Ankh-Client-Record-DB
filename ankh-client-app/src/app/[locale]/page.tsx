@@ -55,6 +55,7 @@ interface Customer {
 
 interface InstructorLesson {
   id: string; lessonType: string; lessonContent?: string; createdAt: string
+  groupParticipantCount?: number | null; groupCompany?: string | null
   location?: { name: string }
   lessonParticipants: {
     id: string; customerSymptoms?: string; customerImprovements?: string; status?: string
@@ -1228,18 +1229,30 @@ export default function HomePage() {
                   <span className="text-sm font-semibold text-gray-900">{new Date(lesson.createdAt).toLocaleDateString()}</span>
                   <Badge>{lesson.lessonType}</Badge>
                   {lesson.location && <Badge variant="blue">{lesson.location.name}</Badge>}
-                  <span className="text-xs text-gray-400 ml-auto">{lesson.lessonParticipants.length} participant{lesson.lessonParticipants.length !== 1 ? 's' : ''}</span>
+                  <span className="text-xs text-gray-400 ml-auto">
+                    {lesson.lessonType === 'Group'
+                      ? `${lesson.groupParticipantCount ?? 0} participant${(lesson.groupParticipantCount ?? 0) !== 1 ? 's' : ''}`
+                      : `${lesson.lessonParticipants.length} participant${lesson.lessonParticipants.length !== 1 ? 's' : ''}`}
+                  </span>
                 </div>
-                {lesson.lessonParticipants.length > 0 && (
-                  <div className="space-y-1 mt-2 pt-2 border-t border-gray-50">
-                    {lesson.lessonParticipants.map(lp => (
-                      <div key={lp.id} className="flex items-center gap-2 text-xs text-gray-600">
-                        <span className="font-medium text-gray-800">{formatName(lp.customer.firstName, lp.customer.lastName)}</span>
-                        {lp.customer.company && <span className="text-gray-400">· {lp.customer.company}</span>}
-                        {lp.customerSymptoms && <span className="text-gray-400 truncate max-w-xs">· {lp.customerSymptoms}</span>}
-                      </div>
-                    ))}
-                  </div>
+                {lesson.lessonType === 'Group' ? (
+                  lesson.groupCompany && (
+                    <div className="mt-2 pt-2 border-t border-gray-50">
+                      <span className="text-xs text-gray-600">{lesson.groupCompany}</span>
+                    </div>
+                  )
+                ) : (
+                  lesson.lessonParticipants.length > 0 && (
+                    <div className="space-y-1 mt-2 pt-2 border-t border-gray-50">
+                      {lesson.lessonParticipants.map(lp => (
+                        <div key={lp.id} className="flex items-center gap-2 text-xs text-gray-600">
+                          <span className="font-medium text-gray-800">{formatName(lp.customer.firstName, lp.customer.lastName)}</span>
+                          {lp.customer.company && <span className="text-gray-400">· {lp.customer.company}</span>}
+                          {lp.customerSymptoms && <span className="text-gray-400 truncate max-w-xs">· {lp.customerSymptoms}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             ))}

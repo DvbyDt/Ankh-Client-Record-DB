@@ -129,7 +129,17 @@
     "placeholderLastName": "성",
     "placeholderEmail": "이메일",
     "placeholderPhone": "전화번호",
-    "placeholderName": "성명"
+    "placeholderName": "성명",
+    "selectLessonType": "수업 유형 선택",
+    "selectLessonTypeDesc": "개인 수업인지 그룹 수업인지 선택하세요",
+    "groupLesson": "그룹 수업",
+    "groupLessonDesc": "그룹 수업 기록 — 참가자 수와 회사명 입력",
+    "individualLesson": "개인 수업",
+    "individualLessonDesc": "개인 고객을 위한 수업 기록",
+    "participantCount": "참가자 수",
+    "participantCountPlaceholder": "예: 10",
+    "groupCompanyLabel": "회사 / 단체",
+    "groupCompanyPlaceholder": "선택 사항"
   },
   "UserManagement": {
     "title": "새 사용자 추가",
