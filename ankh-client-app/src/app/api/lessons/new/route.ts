@@ -13,18 +13,35 @@ export async function POST(request: NextRequest) {
         instructorId,
         instructorIds,
         location,
-        customers
+        customers,
+        groupParticipantCount,
+        groupCompany
     } = requestBody;
 
-    if (!lessonType || !instructorId || !location || !customers) {
+    if (!lessonType || !instructorId || !location) {
         return NextResponse.json(
-            { error: 'Missing required lesson fields: lessonType, instructorId, locationId, and customers.' },
+            { error: 'Missing required lesson fields: lessonType, instructorId, locationId.' },
             { status: 400 }
         );
     }
 
+    if (lessonType === 'Group') {
+        if (!groupParticipantCount || groupParticipantCount < 1) {
+            return NextResponse.json(
+                { error: 'Group lessons require a participant count of at least 1.' },
+                { status: 400 }
+            );
+        }
+    } else {
+        if (!customers || !Array.isArray(customers) || customers.length === 0) {
+            return NextResponse.json(
+                { error: 'Individual lessons require at least one customer.' },
+                { status: 400 }
+            );
+        }
+    }
+
     try {
-        // Create the lesson
         const parsedLessonDate = lessonDate ? new Date(lessonDate) : null
         const lessonCreatedAt = parsedLessonDate && !Number.isNaN(parsedLessonDate.getTime())
             ? parsedLessonDate
@@ -34,6 +51,8 @@ export async function POST(request: NextRequest) {
             data: {
                 lessonType: lessonType,
                 lessonContent: lessonContent || null,
+                groupParticipantCount: lessonType === 'Group' ? (groupParticipantCount ?? null) : null,
+                groupCompany: lessonType === 'Group' ? (groupCompany || null) : null,
                 ...(lessonCreatedAt ? { createdAt: lessonCreatedAt } : {}),
                 instructor: {
                     connect: { id: instructorId }
@@ -45,6 +64,8 @@ export async function POST(request: NextRequest) {
             select: {
                 id: true,
                 lessonType: true,
+                groupParticipantCount: true,
+                groupCompany: true,
                 createdAt: true,
                 instructorId: true,
                 locationId: true
@@ -68,57 +89,55 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Process customers array
-        for (const customerData of customers) {
-            // If email provided, upsert by email. Otherwise find by phone or create fresh.
-            let customer
-            if (customerData.email && customerData.email.trim()) {
-                customer = await prisma.customer.upsert({
-                    where: { email: customerData.email },
-                    update: {},
-                    create: {
-                        email: customerData.email,
-                        firstName: customerData.firstName,
-                        lastName: customerData.lastName,
-                        phone: customerData.phone || null,
-                        company: customerData.company || null
-                    }
-                })
-            } else if (customerData.id) {
-                // Existing customer passed by ID (existing customer flow)
-                const found = await prisma.customer.findUnique({ where: { id: customerData.id } })
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                customer = found ?? await (prisma.customer.create as any)({
-                    data: {
-                        firstName: customerData.firstName,
-                        lastName: customerData.lastName,
-                        phone: customerData.phone || null,
-                        company: customerData.company || null
-                    }
-                })
-            } else {
-                // New customer, no email — create without email
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                customer = await (prisma.customer.create as any)({
-                    data: {
-                        firstName: customerData.firstName,
-                        lastName: customerData.lastName,
-                        phone: customerData.phone || null,
-                        company: customerData.company || null
-                    }
-                })
-            }
-
-            // Create lesson participant entry
-            await prisma.lessonParticipant.create({
-                data: {
-                    lessonId: newLesson.id,
-                    customerId: customer.id,
-                    status: customerData?.feedback || "attended",
-                    customerSymptoms: customerData?.symptoms,
-                    customerImprovements: customerData?.improvements
+        // For individual lessons only: process customers array
+        if (lessonType === 'Individual' && Array.isArray(customers)) {
+            for (const customerData of customers) {
+                let customer
+                if (customerData.email && customerData.email.trim()) {
+                    customer = await prisma.customer.upsert({
+                        where: { email: customerData.email },
+                        update: {},
+                        create: {
+                            email: customerData.email,
+                            firstName: customerData.firstName,
+                            lastName: customerData.lastName,
+                            phone: customerData.phone || null,
+                            company: customerData.company || null
+                        }
+                    })
+                } else if (customerData.id) {
+                    const found = await prisma.customer.findUnique({ where: { id: customerData.id } })
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    customer = found ?? await (prisma.customer.create as any)({
+                        data: {
+                            firstName: customerData.firstName,
+                            lastName: customerData.lastName,
+                            phone: customerData.phone || null,
+                            company: customerData.company || null
+                        }
+                    })
+                } else {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    customer = await (prisma.customer.create as any)({
+                        data: {
+                            firstName: customerData.firstName,
+                            lastName: customerData.lastName,
+                            phone: customerData.phone || null,
+                            company: customerData.company || null
+                        }
+                    })
                 }
-            });
+
+                await prisma.lessonParticipant.create({
+                    data: {
+                        lessonId: newLesson.id,
+                        customerId: customer.id,
+                        status: customerData?.feedback || "attended",
+                        customerSymptoms: customerData?.symptoms,
+                        customerImprovements: customerData?.improvements
+                    }
+                });
+            }
         }
 
         return NextResponse.json({ lesson: newLesson }, { status: 201 });

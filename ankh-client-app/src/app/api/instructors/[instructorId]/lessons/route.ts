@@ -34,6 +34,8 @@ export async function GET(
         id: true,
         lessonType: true,
         lessonContent: true,
+        groupParticipantCount: true,
+        groupCompany: true,
         createdAt: true,
         location: { select: { name: true } },
         lessonParticipants: {
